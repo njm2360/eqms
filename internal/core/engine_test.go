@@ -522,7 +522,6 @@ func TestStatusIsLockFree(t *testing.T) {
 
 	start := time.Now()
 	for range 20000 {
-		h.e.Status()
 		h.e.Health()
 	}
 	if d := time.Since(start); d > 2*time.Second {

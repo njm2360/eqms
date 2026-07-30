@@ -295,13 +295,13 @@ func TestUnknownAPIPathIsNotFound(t *testing.T) {
 			t.Errorf("%s: code=%d body=%q, want 404", path, code, body)
 		}
 	}
-	res, err := http.Post(srv.URL+"/api/status", "text/plain", nil)
+	res, err := http.Post(srv.URL+"/api/events", "text/plain", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	res.Body.Close()
 	if res.StatusCode == http.StatusOK {
-		t.Errorf("POST /api/status returned 200")
+		t.Errorf("POST /api/events returned 200")
 	}
 }
 
@@ -309,7 +309,7 @@ func TestUnknownAPIPathIsNotFound(t *testing.T) {
 func TestGzipRejectedByZeroQuality(t *testing.T) {
 	srv, _ := newTestServer(t)
 	for _, ae := range []string{"gzip;q=0", "br, notgzipatall", "identity"} {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/status", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/events", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,7 +344,7 @@ func TestUnencodableValueIsAnError(t *testing.T) {
 func TestGzipHeaderIsCaseInsensitive(t *testing.T) {
 	srv, _ := newTestServer(t)
 	for _, ae := range []string{"GZIP", "GZip;Q=0.5", "br, Gzip"} {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/status", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/events", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -362,7 +362,7 @@ func TestGzipHeaderIsCaseInsensitive(t *testing.T) {
 
 func TestSecurityHeaders(t *testing.T) {
 	srv, _ := newTestServer(t)
-	for _, path := range []string{"/", "/api/status"} {
+	for _, path := range []string{"/", "/api/events"} {
 		res, err := http.Get(srv.URL + path)
 		if err != nil {
 			t.Fatal(err)

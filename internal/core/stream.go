@@ -67,12 +67,6 @@ func (e *Engine) buildStatus() StatusMsg {
 	return st
 }
 
-func (e *Engine) Status() StatusMsg {
-	st := e.snap.Load().status
-	st.Now = nowMs()
-	return st
-}
-
 // Health は監視用に、サンプルが届いていて書き込みも失敗していないかを返す。
 func (e *Engine) Health() HealthMsg {
 	s := e.snap.Load()

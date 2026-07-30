@@ -38,7 +38,6 @@ func NewServer(engine *core.Engine, st *store.Store, cfg Config) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /api/stream", s.handleStream)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/events/{id}", s.handleEvent)
@@ -75,10 +74,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSONStatus(w, r, code, h)
-}
-
-func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, r, s.engine.Status())
 }
 
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
