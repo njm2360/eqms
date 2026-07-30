@@ -1,0 +1,5 @@
+/eqms
+*.db
+*.db-shm
+*.db-wal
+/internal/web/dist/

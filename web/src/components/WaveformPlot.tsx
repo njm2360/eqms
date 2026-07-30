@@ -1,0 +1,352 @@
+import { useEffect, useId, useLayoutEffect, useRef } from "react"
+import uPlot from "uplot"
+import { emptyPlot, livePlot, rangePlot, type Plot } from "../lib/plotData"
+import type { Sample, WaveformRange } from "../lib/types"
+
+export interface View {
+  from: number // ms epoch
+  to: number
+}
+
+interface Props {
+  label: string
+  live?: React.RefObject<Sample[]> // 指定時は最新 spanMs を追従表示する
+  spanMs?: number
+  range?: WaveformRange
+  view?: View // 表示範囲。拡大縮小は親が状態として持つ
+  bounds?: View // 引き切れる限界。指定するとホイール/ドラッグ操作が有効になる
+  onViewChange?: (view: View) => void
+}
+
+const AXES = [
+  { label: "X", cssVar: "--series-x" },
+  { label: "Y", cssVar: "--series-y" },
+  { label: "Z", cssVar: "--series-z" },
+] as const
+
+const PANE_H = 96 // プロット領域の高さ。段は隙間なく積む
+const EDGE_PAD = 8 // 上下端の目盛りラベルが半分はみ出さない幅
+const X_AXIS_H = 26
+const Y_AXIS_W = 46
+const X_LABEL_PAD = 16 // 右端の時刻ラベルが欠けない幅
+
+function fmtScale(v: number): string {
+  if (v === 0) return "0"
+  return (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1)).replace(/\.0$/, "")
+}
+const MIN_SPAN_MS = 200 // 生サンプル20点。これ以上拡大しても情報は増えない
+const NOTIFY_DELAY_MS = 150
+
+function cssColor(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+const pad = (n: number) => String(n).padStart(2, "0")
+
+// 刻み幅に応じて必要な桁だけ出す。時分秒を全部並べると隣とぶつかり、
+// 逆に秒までしか出さないと 1 秒未満に拡大したとき全部同じラベルになる。
+function tickLabel(sec: number, incrSec: number): string {
+  const d = new Date(Math.round(sec * 1000))
+  if (incrSec >= 60) return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  if (incrSec >= 1) return `${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const digits = incrSec >= 0.1 ? 1 : incrSec >= 0.01 ? 2 : 3
+  return `${pad(d.getSeconds())}${(d.getMilliseconds() / 1000).toFixed(digits).slice(1)}`
+}
+
+function clockLabel(sec: number): string {
+  const d = new Date(sec * 1000)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`
+}
+
+export default function WaveformPlot({ label, live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
+  const interactive = bounds !== undefined
+  const syncKey = useId()
+  const hostRef = useRef<HTMLDivElement>(null)
+  const timeRef = useRef<HTMLSpanElement>(null)
+  const valueRefs = useRef<(HTMLSpanElement | null)[]>([])
+
+  const plotsRef = useRef<uPlot[]>([])
+  const plotDataRef = useRef<Plot>(emptyPlot())
+  const scaledRef = useRef(false) // y スケールを一度でも入れたか
+  const viewRef = useRef<View | null>(null)
+  const boundsRef = useRef(bounds)
+  const viewPropRef = useRef(view)
+  const notifyRef = useRef(onViewChange)
+  boundsRef.current = bounds
+  viewPropRef.current = view
+  notifyRef.current = onViewChange
+
+  // スケールはすぐ動かし、親への通知だけ遅らせる
+  const applyViewRef = useRef<(v: View, notify?: boolean) => void>(() => {})
+
+  useLayoutEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+
+    const grid = cssColor("--grid")
+    const muted = cssColor("--text-muted")
+    let notifyTimer = 0
+    let disposed = false
+
+    const applyView = (v: View, notify = true) => {
+      if (disposed) return
+      let { from, to } = v
+      if (to - from < MIN_SPAN_MS) {
+        const mid = (from + to) / 2
+        from = mid - MIN_SPAN_MS / 2
+        to = mid + MIN_SPAN_MS / 2
+      }
+      const b = boundsRef.current
+      if (b) {
+        const span = Math.min(to - from, b.to - b.from)
+        if (from < b.from) from = b.from
+        if (from + span > b.to) from = b.to - span
+        to = from + span
+      }
+      viewRef.current = { from, to }
+      for (const u of plotsRef.current) u.setScale("x", { min: from / 1000, max: to / 1000 })
+      if (!notify) return
+      clearTimeout(notifyTimer)
+      notifyTimer = setTimeout(() => notifyRef.current?.({ from: Math.floor(from), to: Math.ceil(to) }), NOTIFY_DELAY_MS)
+    }
+    applyViewRef.current = applyView
+
+    const showReadout = (u: uPlot) => {
+      const idx = u.cursor.idx
+      const { data } = plotDataRef.current
+      const has = idx != null && idx >= 0 && idx < data[0].length
+      if (timeRef.current) timeRef.current.textContent = has ? clockLabel(data[0][idx!]) : ""
+      valueRefs.current.forEach((el, a) => {
+        if (!el) return
+        const v = has ? data[a + 1][idx!] : null
+        el.textContent = has && v !== null ? v.toFixed(2) : "--"
+      })
+    }
+
+    const plots = AXES.map((axis, i) => {
+      const isLast = i === AXES.length - 1
+      const stroke = cssColor(axis.cssVar)
+      const opts: uPlot.Options = {
+        width: host.clientWidth || 600,
+        height: PANE_H + (i === 0 ? EDGE_PAD : 0) + (isLast ? EDGE_PAD + X_AXIS_H : 0),
+        // 明示しないと、時刻ラベルを出す段だけ右パディングが自動で広がって段がずれる
+        padding: [i === 0 ? EDGE_PAD : 0, X_LABEL_PAD, isLast ? EDGE_PAD : 0, 0],
+        legend: { show: false },
+        cursor: {
+          sync: { key: syncKey },
+          drag: { x: false, y: false }, // 範囲選択は使わない。拡大はホイール、移動はドラッグ
+          points: { show: false },
+          y: false, // 横線は読み取れる情報がない
+        },
+        // どちらも setScale で明示的に入れる。auto に任せると 3 段でスケールが割れる
+        scales: {
+          x: { time: true, auto: false, range: (_u, min, max) => [min, max] },
+          y: { auto: false, range: (_u, min, max) => [min, max] },
+        },
+        axes: [
+          {
+            // 時刻ラベルは最下段だけ。グリッドは全段に要るので軸自体は消さず高さを0にする
+            size: isLast ? X_AXIS_H : 0,
+            stroke: muted,
+            font: "10px system-ui",
+            grid: { stroke: grid, width: 1 },
+            ticks: { show: false },
+            values: (_u, splits, _ai, _space, incr) =>
+              isLast ? splits.map((s) => tickLabel(s, incr)) : splits.map(() => ""),
+          },
+          {
+            size: Y_AXIS_W,
+            stroke: muted,
+            font: "10px system-ui",
+            grid: { stroke: grid, width: 1 },
+            ticks: { show: false },
+            // スケール範囲外の値を返すとラベルが枠の外へ出て隣の段とぶつかる。
+            // 全幅はピークちょうどに置き、段ごとの重複を避けて上端と下端にだけ出す
+            splits: () => {
+              const p = plotDataRef.current.peak
+              return i === 0 ? [0, p] : isLast ? [-p, 0] : [0]
+            },
+            values: (_u, splits) => splits.map(fmtScale),
+          },
+        ],
+        series: [{}, { stroke, width: 1.25, points: { show: false }, spanGaps: false }],
+        hooks: { setCursor: [showReadout] },
+      }
+      // データは後から setData で入れる。スケール未確定のまま描かせない
+      const u = new uPlot(opts, [[], []] as uPlot.AlignedData, host)
+      u.over.style.cursor = interactive ? "grab" : "crosshair"
+      return u
+    })
+    plotsRef.current = plots
+
+    // 先に表示範囲を入れる。x が未設定だと setData が勝手に自動スケールする
+    const initial = viewPropRef.current ?? boundsRef.current
+    if (initial) {
+      applyView(initial, false)
+    } else if (live) {
+      const buf = live.current
+      const end = buf.length > 0 ? buf[buf.length - 1].t : Date.now()
+      applyView({ from: end - spanMs, to: end }, false)
+    }
+
+    // 作り直し時は直近のデータを入れ直す
+    const cur = plotDataRef.current
+    if (cur.data[0].length > 0) {
+      for (const [i, u] of plots.entries()) {
+        u.setData([cur.data[0], cur.data[i + 1]] as uPlot.AlignedData, true)
+        u.setScale("y", { min: -cur.peak, max: cur.peak })
+      }
+      scaledRef.current = true
+    }
+
+    let lastWidth = host.clientWidth
+    const ro = new ResizeObserver(() => {
+      const w = host.clientWidth
+      if (w === 0 || w === lastWidth) return
+      lastWidth = w
+      for (const u of plots) u.setSize({ width: w, height: u.height })
+    })
+    ro.observe(host)
+
+    const cleanups: (() => void)[] = []
+    if (interactive) {
+      for (const u of plots) {
+        const onWheel = (e: WheelEvent) => {
+          e.preventDefault()
+          const v = viewRef.current
+          if (!v) return
+          const rect = u.over.getBoundingClientRect()
+          const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+          const at = v.from + (v.to - v.from) * frac
+          const k = e.deltaY < 0 ? 0.8 : 1.25
+          applyView({ from: at - (at - v.from) * k, to: at + (v.to - at) * k })
+        }
+        // ドラッグ移動。押している間だけ window で追う
+        const onDown = (e: MouseEvent) => {
+          if (e.button !== 0) return
+          const start = viewRef.current
+          if (!start) return
+          const startX = e.clientX
+          const width = u.over.getBoundingClientRect().width
+          u.over.style.cursor = "grabbing"
+          const onMove = (m: MouseEvent) => {
+            const dt = ((startX - m.clientX) / width) * (start.to - start.from)
+            applyView({ from: start.from + dt, to: start.to + dt })
+          }
+          const onUp = () => {
+            u.over.style.cursor = "grab"
+            window.removeEventListener("mousemove", onMove)
+            window.removeEventListener("mouseup", onUp)
+          }
+          window.addEventListener("mousemove", onMove)
+          window.addEventListener("mouseup", onUp)
+        }
+        const onDouble = () => {
+          const b = boundsRef.current
+          if (b) applyView(b)
+        }
+        u.over.addEventListener("wheel", onWheel, { passive: false })
+        u.over.addEventListener("mousedown", onDown)
+        u.over.addEventListener("dblclick", onDouble)
+        cleanups.push(() => {
+          u.over.removeEventListener("wheel", onWheel)
+          u.over.removeEventListener("mousedown", onDown)
+          u.over.removeEventListener("dblclick", onDouble)
+        })
+      }
+    }
+
+    return () => {
+      disposed = true
+      clearTimeout(notifyTimer)
+      ro.disconnect()
+      for (const c of cleanups) c()
+      for (const u of plots) u.destroy()
+      plotsRef.current = []
+      // 作り直したインスタンスへ表示範囲と y スケールを入れ直させる
+      viewRef.current = null
+      scaledRef.current = false
+    }
+  }, [syncKey, interactive, live, spanMs])
+
+  // 各インスタンスは1系列なので、共有の x と自分の軸だけを渡す。
+  // y は 3 段共有なので、データと一緒に必ず入れ直す
+  const pushData = (plot: Plot) => {
+    const peakChanged = Math.abs(plot.peak - plotDataRef.current.peak) > 1e-6 || !scaledRef.current
+    plotDataRef.current = plot
+    scaledRef.current = true
+    for (const [i, u] of plotsRef.current.entries()) {
+      // resetScales=false だと可視インデックスが前のデータのまま残り再描画も走らない。
+      // true でも x.auto=false なので、現在の表示範囲がそのまま再適用されるだけ
+      u.setData([plot.data[0], plot.data[i + 1]] as uPlot.AlignedData, true)
+      if (peakChanged) u.setScale("y", { min: -plot.peak, max: plot.peak })
+    }
+  }
+  const pushDataRef = useRef(pushData)
+  pushDataRef.current = pushData
+
+  // 履歴: データ差し替え。スケールは維持したまま解像度だけ上げ直す
+  useEffect(() => {
+    if (!range) return
+    pushDataRef.current(rangePlot(range))
+  }, [range])
+
+  useEffect(() => {
+    if (!view) return
+    const cur = viewRef.current
+    if (cur && Math.abs(cur.from - view.from) < 1 && Math.abs(cur.to - view.to) < 1) return
+    applyViewRef.current(view, false)
+  }, [view])
+
+  // ライブ: バッファが変わったときだけ組み直す
+  useEffect(() => {
+    if (!live) return
+    let raf = 0
+    let key = ""
+    const tick = () => {
+      const buf = live.current
+      const k = buf.length === 0 ? "" : `${buf.length}:${buf[0].t}:${buf[buf.length - 1].t}`
+      if (k !== key) {
+        key = k
+        pushDataRef.current(livePlot(buf))
+        const end = buf.length > 0 ? buf[buf.length - 1].t : Date.now()
+        applyViewRef.current({ from: end - spanMs, to: end }, false)
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [live, spanMs])
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-4 pb-1 text-[11px] text-[var(--text-muted)]">
+        <span>{label}</span>
+        <span className="flex items-baseline gap-x-3 tabular-nums">
+          <span ref={timeRef} />
+          {AXES.map((axis, i) => (
+            <span key={axis.label}>
+              <span style={{ color: `var(${axis.cssVar})` }}>{axis.label}</span>{" "}
+              <span
+                ref={(el) => {
+                  valueRefs.current[i] = el
+                }}
+              />
+            </span>
+          ))}
+        </span>
+      </div>
+      <div ref={hostRef} className="wave-host relative">
+        {AXES.map((axis, i) => (
+          <span
+            key={axis.label}
+            className="pointer-events-none absolute z-10 text-[11px] font-bold"
+            style={{ color: `var(${axis.cssVar})`, left: Y_AXIS_W + 6, top: EDGE_PAD + i * PANE_H + 3 }}
+          >
+            {axis.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}

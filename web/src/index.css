@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* ダーク固定 */
+:root {
+  color-scheme: dark;
+  --surface-0: #111110;
+  --surface-1: #1a1a19;
+  --border: #2e2e2b;
+  --grid: #242422; /* 波形のゼロ線と時刻グリッド。外枠より弱くする */
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8a897f;
+  --series-x: #3987e5;
+  --series-y: #d95926;
+  --series-z: #199e70;
+  --ok: #199e70;
+  --bad: #e66767;
+}
+
+/* uPlot: 段ごとのプロット領域を枠で囲む。隣り合う段は境界線を1本だけ共有する */
+.wave-host .u-over {
+  border: 1px solid var(--border);
+}
+.wave-host .uplot + .uplot .u-over {
+  border-top: 0;
+}
+
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
