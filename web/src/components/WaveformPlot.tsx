@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import uPlot from "uplot"
 import { emptyPlot, livePlot, rangePlot, type Plot } from "../lib/plotData"
 import type { Sample, WaveformRange } from "../lib/types"
@@ -24,11 +24,20 @@ const AXES = [
   { label: "Z", cssVar: "--series-z" },
 ] as const
 
-const PANE_H = 96 // プロット領域の高さ。段は隙間なく積む
-const EDGE_PAD = 8 // 上下端の目盛りラベルが半分はみ出さない幅
+const PANE_MIN_H = 96
+const PANE_MAX_H = 220
+const BOTTOM_GAP = 16 // 画面下端に残す余白
+const EDGE_PAD = 8 // 各段の上下端の目盛りラベルが半分はみ出さない幅
 const X_AXIS_H = 26
 const Y_AXIS_W = 46
 const X_LABEL_PAD = 16 // 右端の時刻ラベルが欠けない幅
+
+// 画面の残り高さを段数で割ってプロット領域の高さを決める
+function paneHeight(host: HTMLElement): number {
+  const avail = window.innerHeight - host.getBoundingClientRect().top - BOTTOM_GAP
+  const h = Math.floor((avail - X_AXIS_H) / AXES.length) - EDGE_PAD * 2
+  return Math.min(PANE_MAX_H, Math.max(PANE_MIN_H, h))
+}
 
 function fmtScale(v: number): string {
   if (v === 0) return "0"
@@ -61,6 +70,7 @@ function clockLabel(sec: number): string {
 export default function WaveformPlot({ label, live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
   const interactive = bounds !== undefined
   const syncKey = useId()
+  const [paneH, setPaneH] = useState(PANE_MIN_H)
   const hostRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const valueRefs = useRef<(HTMLSpanElement | null)[]>([])
@@ -123,14 +133,17 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
       })
     }
 
+    const ph = paneHeight(host)
+    setPaneH(ph)
+
     const plots = AXES.map((axis, i) => {
       const isLast = i === AXES.length - 1
       const stroke = cssColor(axis.cssVar)
       const opts: uPlot.Options = {
         width: host.clientWidth || 600,
-        height: PANE_H + (i === 0 ? EDGE_PAD : 0) + (isLast ? EDGE_PAD + X_AXIS_H : 0),
+        height: ph + EDGE_PAD * 2 + (isLast ? X_AXIS_H : 0),
         // 明示しないと、時刻ラベルを出す段だけ右パディングが自動で広がって段がずれる
-        padding: [i === 0 ? EDGE_PAD : 0, X_LABEL_PAD, isLast ? EDGE_PAD : 0, 0],
+        padding: [EDGE_PAD, X_LABEL_PAD, EDGE_PAD, 0],
         legend: { show: false },
         cursor: {
           sync: { key: syncKey },
@@ -160,11 +173,10 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
             font: "10px system-ui",
             grid: { stroke: grid, width: 1 },
             ticks: { show: false },
-            // スケール範囲外の値を返すとラベルが枠の外へ出て隣の段とぶつかる。
-            // 全幅はピークちょうどに置き、段ごとの重複を避けて上端と下端にだけ出す
+            // スケール範囲外の値を返すとラベルが枠の外へ出る。全幅はピークちょうどに置く
             splits: () => {
               const p = plotDataRef.current.peak
-              return i === 0 ? [0, p] : isLast ? [-p, 0] : [0]
+              return [-p, 0, p]
             },
             values: (_u, splits) => splits.map(fmtScale),
           },
@@ -199,14 +211,23 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
       scaledRef.current = true
     }
 
-    let lastWidth = host.clientWidth
-    const ro = new ResizeObserver(() => {
+    let lastW = host.clientWidth
+    let lastPaneH = ph
+    const applySize = () => {
       const w = host.clientWidth
-      if (w === 0 || w === lastWidth) return
-      lastWidth = w
-      for (const u of plots) u.setSize({ width: w, height: u.height })
-    })
+      if (w === 0) return
+      const h = paneHeight(host)
+      if (w === lastW && h === lastPaneH) return
+      lastW = w
+      lastPaneH = h
+      setPaneH(h)
+      for (const [i, u] of plots.entries())
+        u.setSize({ width: w, height: h + EDGE_PAD * 2 + (i === AXES.length - 1 ? X_AXIS_H : 0) })
+    }
+    const ro = new ResizeObserver(applySize)
     ro.observe(host)
+    // ビューポートの高さだけ変わってもホストの幅は変わらず RO が発火しない
+    window.addEventListener("resize", applySize)
 
     const cleanups: (() => void)[] = []
     if (interactive) {
@@ -260,6 +281,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
       disposed = true
       clearTimeout(notifyTimer)
       ro.disconnect()
+      window.removeEventListener("resize", applySize)
       for (const c of cleanups) c()
       for (const u of plots) u.destroy()
       plotsRef.current = []
@@ -341,7 +363,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           <span
             key={axis.label}
             className="pointer-events-none absolute z-10 text-[11px] font-bold"
-            style={{ color: `var(${axis.cssVar})`, left: Y_AXIS_W + 6, top: EDGE_PAD + i * PANE_H + 3 }}
+            style={{ color: `var(${axis.cssVar})`, left: Y_AXIS_W + 6, top: i * (paneH + EDGE_PAD * 2) + EDGE_PAD + 3 }}
           >
             {axis.label}
           </span>
