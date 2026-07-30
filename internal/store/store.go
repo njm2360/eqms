@@ -37,7 +37,7 @@ type Store struct {
 
 func Open(path string) (*Store, error) {
 	w, err := sql.Open("sqlite", path+
-		"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"+
+		"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(FULL)"+
 		"&_pragma=auto_vacuum(incremental)")
 	if err != nil {
 		return nil, err
