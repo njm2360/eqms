@@ -380,11 +380,13 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
       <div className="flex items-baseline justify-between gap-4 pb-1 text-[11px] text-[var(--text-muted)]">
         <span>{label}</span>
         <span className="flex items-baseline gap-x-3 tabular-nums">
-          <span ref={timeRef} className="whitespace-nowrap" />
+          {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
+          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap" />
           {AXES.map((axis, i) => (
             <span key={axis.label} className="whitespace-nowrap">
               <span style={{ color: `var(${axis.cssVar})` }}>{axis.label}</span>{" "}
               <span
+                className="inline-block w-[7ch] text-right"
                 ref={(el) => {
                   valueRefs.current[i] = el
                 }}
