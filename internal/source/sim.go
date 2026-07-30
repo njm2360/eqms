@@ -33,9 +33,10 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 			el := now.Sub(start).Seconds()
 			phase := math.Mod(el, quakePeriod)
 
-			x := rand.NormFloat64() * 0.05
-			y := rand.NormFloat64() * 0.05
-			z := rand.NormFloat64() * 0.05
+			// ノイズ床は震度換算で表示しきい値 (-0.5) を十分下回る振幅に保つ
+			x := rand.NormFloat64() * 0.02
+			y := rand.NormFloat64() * 0.02
+			z := rand.NormFloat64() * 0.02
 			if el > float64(stabilizeSec)+5 && phase < quakeDuration {
 				amp := 120.0 * math.Exp(-phase/6.0) * (1 - math.Exp(-phase*2))
 				x += amp * math.Sin(2*math.Pi*2.5*phase)
@@ -55,10 +56,7 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 					val = "nan"
 				} else {
 					// 計測震度の近似式 I = 2*log10(a) + 0.94
-					i := 0.0
-					if envelope >= 0.5 {
-						i = 2*math.Log10(envelope) + 0.94
-					}
+					i := 2*math.Log10(math.Max(envelope, 0.01)) + 0.94
 					val = fmt.Sprintf("%.1f", i)
 				}
 				send(ctx, ch, Line{Text: nmea.Format("XSINT,-1.0," + val), Recv: now})
