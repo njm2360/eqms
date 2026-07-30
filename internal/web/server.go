@@ -43,7 +43,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/events/{id}", s.handleEvent)
 	mux.HandleFunc("GET /api/waveform", s.handleWaveform)
-	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /health", s.handleHealth)
 	// SPA フォールバックが API の名前空間まで飲み込まないようにする
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no such endpoint", http.StatusNotFound)
@@ -98,7 +98,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	ch, init, cancel, err := s.engine.Subscribe()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	defer cancel()
@@ -166,7 +166,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	// 1件多く引いて、続きがあるかを呼び出し側に返す
 	events, err := s.st.ListEvents(n+1, before, beforeID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "list events", err)
 		return
 	}
 	res := eventsResponse{Events: events}
@@ -194,7 +194,7 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	ev, err := s.st.GetEvent(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "get event", err)
 		return
 	}
 	if ev == nil {
@@ -223,7 +223,7 @@ func (s *Server) handleWaveform(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "waveform range", err)
 		return
 	}
 	writeJSON(w, r, wf)

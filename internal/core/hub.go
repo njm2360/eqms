@@ -35,7 +35,7 @@ func (h *Hub) Unsubscribe(ch chan []byte) {
 func (h *Hub) Publish(event string, v any) { h.publish(event, v, false) }
 
 // PublishKeep は捨てずに、詰まっていれば最も古いフレームを押し出して入れる。
-// 一度しか送らない状態変化 (eqevent, deverr) に使う。
+// 一度しか送らない状態変化 (eqevent) に使う。
 func (h *Hub) PublishKeep(event string, v any) { h.publish(event, v, true) }
 
 func (h *Hub) publish(event string, v any, keep bool) {

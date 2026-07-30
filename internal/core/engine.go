@@ -70,20 +70,14 @@ type Engine struct {
 
 	clock     SampleClock
 	connected bool
-	port      string
-	hw        *nmea.HWInfo
 
 	ring    [ringCapacity]sample
 	ringPos int
 	ringN   int
 
-	spsCount     int
-	sps          int
-	parseErrs    uint64
-	lastDevErr   string
-	lastDevErrAt int64
-	intensity    *float64
-	stable       bool
+	parseErrs uint64
+	intensity *float64
+	stable    bool
 
 	lastSampleT int64 // SampleClock 上の時刻。イベントの時刻もこれに揃える
 	// 途絶判定用。壁時計の飛びを拾わないよう time.Since で測る
@@ -224,10 +218,8 @@ func (e *Engine) handle(ev source.Event) {
 	switch v := ev.(type) {
 	case source.Connected:
 		e.connected = true
-		e.port = v.Port
 		e.clock.Reset()
 		e.flushPartial()
-		e.lastDevErr, e.lastDevErrAt = "", 0
 		e.publishStatus()
 	case source.Disconnected:
 		e.connected = false
@@ -239,7 +231,11 @@ func (e *Engine) handle(ev source.Event) {
 	case source.Line:
 		parsed, err := nmea.Parse(v.Text)
 		if err != nil {
+			// 壊れたストリームで毎行吐かないよう間引く
 			e.parseErrs++
+			if e.parseErrs == 1 || e.parseErrs%1000 == 0 {
+				log.Printf("engine: parse error #%d: %v", e.parseErrs, err)
+			}
 			return
 		}
 		switch s := parsed.(type) {
@@ -252,13 +248,9 @@ func (e *Engine) handle(ev source.Event) {
 				log.Printf("engine: ignoring unsupported XSHWI info version %d", s.InfoVersion)
 				return
 			}
-			hw := s
-			e.hw = &hw
-			e.publishStatus()
+			log.Printf("engine: device %s fw=%s sensor=%s adc=%s", s.Device, s.Firmware, s.Sensor, s.ADC)
 		case nmea.DevErr:
-			e.lastDevErr, e.lastDevErrAt = s.ID, e.eventTime()
 			log.Printf("engine: device error: %s", s.ID)
-			e.hub.PublishKeep("deverr", DevErrMsg{T: e.lastDevErrAt, ID: s.ID})
 		case nmea.BootReason:
 			log.Printf("engine: device booted: %s", s.ID)
 		}
@@ -295,7 +287,6 @@ func (e *Engine) handleAcc(a nmea.Acc, recv time.Time) {
 	s := sample{t: t, x: float32(a.X), y: float32(a.Y), z: float32(a.Z), c: float32(comp)}
 	e.lastSampleT = t
 	e.lastSampleAt = time.Now()
-	e.spsCount++
 
 	e.ring[e.ringPos] = s
 	e.ringPos = (e.ringPos + 1) % ringCapacity
@@ -330,8 +321,6 @@ func (e *Engine) eventTime() int64 {
 }
 
 func (e *Engine) tick() {
-	e.sps = e.spsCount
-	e.spsCount = 0
 	if e.rec != nil && !e.lastSampleAt.IsZero() && time.Since(e.lastSampleAt) > staleSample {
 		log.Printf("engine: no samples for %s, closing event %d", staleSample, e.rec.id)
 		e.finishEvent(e.lastSampleT)

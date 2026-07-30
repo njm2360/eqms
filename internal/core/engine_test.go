@@ -481,7 +481,7 @@ func TestHealth(t *testing.T) {
 
 	h.ch <- source.Disconnected{Err: "unplugged"}
 	h.sync(t)
-	if got := h.e.Health(); got.OK || got.Connected {
+	if got := h.e.Health(); got.OK {
 		t.Fatalf("ok after disconnect: %+v", got)
 	}
 }

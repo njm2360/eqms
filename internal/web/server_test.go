@@ -266,7 +266,7 @@ func TestEventNotFound(t *testing.T) {
 func TestHealthEndpoint(t *testing.T) {
 	srv, _ := newTestServer(t)
 
-	res, err := http.Get(srv.URL + "/healthz")
+	res, err := http.Get(srv.URL + "/health")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,8 +281,8 @@ func TestHealthEndpoint(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&h); err != nil {
 		t.Fatal(err)
 	}
-	if h.OK || h.Reason == "" {
-		t.Fatalf("reason is empty: %+v", h)
+	if h.OK {
+		t.Fatalf("must not be ok while disconnected: %+v", h)
 	}
 }
 

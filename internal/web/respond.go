@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+func internalError(w http.ResponseWriter, what string, err error) {
+	log.Printf("web: %s: %v", what, err)
+	http.Error(w, "internal error", http.StatusInternalServerError)
+}
+
 func writeJSON(w http.ResponseWriter, r *http.Request, v any) {
 	writeJSONStatus(w, r, http.StatusOK, v)
 }

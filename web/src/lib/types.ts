@@ -30,16 +30,9 @@ export interface ActiveEvent {
 export interface Status {
   now: number
   connected: boolean
-  port: string
-  device?: string
-  firmware?: string
-  sps: number
   intensity: number | null
   stable: boolean
   active: ActiveEvent | null
-  parseErrs: number
-  lastDevErr?: string
-  lastDevErrAt?: number
 }
 
 export interface EqEvent {

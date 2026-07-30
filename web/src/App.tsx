@@ -2,7 +2,6 @@ import { useState } from "react"
 import HistoryView from "./components/HistoryView"
 import IntensityPanel from "./components/IntensityPanel"
 import WaveformPlot from "./components/WaveformPlot"
-import { fmtTime } from "./lib/jma"
 import { readQuery, updateQuery } from "./lib/urlState"
 import { useStream } from "./lib/useStream"
 
@@ -22,29 +21,15 @@ export default function App() {
     updateQuery(t === "realtime" ? { tab: null, event: null } : { tab: t })
   }
 
-  const serialOk = streamOk && (status?.connected ?? false)
-
   return (
     <div className="mx-auto flex min-h-screen max-w-[90rem] flex-col px-4">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--border)] py-3">
         <span className="font-semibold tracking-tight">eqms</span>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-secondary)]">
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: serialOk ? "var(--ok)" : "var(--bad)" }}
-            />
-            {!streamOk ? "サーバー再接続中" : serialOk ? status?.device || "地震計" : "地震計 未接続"}
-          </span>
-          {serialOk && <span className="tabular-nums">{status?.port}</span>}
-          {serialOk && <span className="tabular-nums">{status?.sps ?? 0} sps</span>}
-          {status?.lastDevErr && (
-            <span className="text-[var(--bad)]">
-              エラー {status.lastDevErr}
-              {status.lastDevErrAt ? ` ${fmtTime(status.lastDevErrAt)}` : ""}
-            </span>
-          )}
-        </div>
+        {/* 正常時は何も出さない。初回ロード中 (status 未着) も未判定なので出さない */}
+        {status !== null && !streamOk && <span className="text-xs text-[var(--bad)]">サーバーと再接続中</span>}
+        {status !== null && streamOk && !status.connected && (
+          <span className="text-xs text-[var(--bad)]">地震計からデータが届いていません</span>
+        )}
         <nav className="ml-auto flex gap-1">
           {TABS.map(([key, label]) => (
             <button

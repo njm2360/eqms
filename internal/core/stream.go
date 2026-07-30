@@ -31,17 +31,9 @@ type ActiveEvent struct {
 type StatusMsg struct {
 	Now       int64        `json:"now"`
 	Connected bool         `json:"connected"`
-	Port      string       `json:"port"`
-	Device    string       `json:"device,omitempty"`
-	Firmware  string       `json:"firmware,omitempty"`
-	Sps       int          `json:"sps"`
 	Intensity *float64     `json:"intensity"`
 	Stable    bool         `json:"stable"`
 	Active    *ActiveEvent `json:"active"`
-	ParseErrs uint64       `json:"parseErrs"`
-	// 接続が切り替わるまで保持する。UI 側で経過時間を出せるよう発生時刻も返す
-	LastDevErr   string `json:"lastDevErr,omitempty"`
-	LastDevErrAt int64  `json:"lastDevErrAt,omitempty"`
 }
 
 type InitMsg struct {
@@ -55,34 +47,16 @@ type EqMsg struct {
 	Event store.Event `json:"event"`
 }
 
-type DevErrMsg struct {
-	T  int64  `json:"t"`
-	ID string `json:"id"`
-}
-
 type HealthMsg struct {
-	OK        bool   `json:"ok"`
-	Connected bool   `json:"connected"`
-	Sps       int    `json:"sps"`
-	ParseErrs uint64 `json:"parseErrs"`
-	Reason    string `json:"reason,omitempty"`
+	OK bool `json:"ok"`
 }
 
 func (e *Engine) buildStatus() StatusMsg {
 	st := StatusMsg{
-		Now:          nowMs(),
-		Connected:    e.connected,
-		Port:         e.port,
-		Sps:          e.sps,
-		Intensity:    e.intensity,
-		Stable:       e.stable,
-		ParseErrs:    e.parseErrs,
-		LastDevErr:   e.lastDevErr,
-		LastDevErrAt: e.lastDevErrAt,
-	}
-	if e.hw != nil {
-		st.Device = e.hw.Device
-		st.Firmware = e.hw.Firmware
+		Now:       nowMs(),
+		Connected: e.connected,
+		Intensity: e.intensity,
+		Stable:    e.stable,
 	}
 	if r := e.rec; r != nil {
 		st.Active = &ActiveEvent{
@@ -102,18 +76,8 @@ func (e *Engine) Status() StatusMsg {
 // Health は監視用に、地震計からサンプルが届いているかを返す。
 func (e *Engine) Health() HealthMsg {
 	s := e.snap.Load()
-	h := HealthMsg{Connected: s.status.Connected, Sps: s.status.Sps, ParseErrs: s.status.ParseErrs}
-	switch {
-	case !h.Connected:
-		h.Reason = "device disconnected"
-	case s.lastSampleAt.IsZero():
-		h.Reason = "no samples yet"
-	case time.Since(s.lastSampleAt) > healthStaleSample:
-		h.Reason = "no samples for " + time.Since(s.lastSampleAt).Round(time.Second).String()
-	default:
-		h.OK = true
-	}
-	return h
+	ok := s.status.Connected && !s.lastSampleAt.IsZero() && time.Since(s.lastSampleAt) <= healthStaleSample
+	return HealthMsg{OK: ok}
 }
 
 // Subscribe は購読登録とスナップショット作成を Run ゴルーチンへ渡す。サンプルの取り込みと
