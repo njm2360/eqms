@@ -52,14 +52,14 @@ function cssColor(name: string): string {
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-// 刻み幅に応じて必要な桁だけ出す。時分秒を全部並べると隣とぶつかり、
-// 逆に秒までしか出さないと 1 秒未満に拡大したとき全部同じラベルになる。
+// 1 秒未満に拡大したときはラベルが重複しないよう刻み幅に応じたミリ秒を足す。
 function tickLabel(sec: number, incrSec: number): string {
   const d = new Date(Math.round(sec * 1000))
   if (incrSec >= 60) return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  if (incrSec >= 1) return `${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const hms = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  if (incrSec >= 1) return hms
   const digits = incrSec >= 0.1 ? 1 : incrSec >= 0.01 ? 2 : 3
-  return `${pad(d.getSeconds())}${(d.getMilliseconds() / 1000).toFixed(digits).slice(1)}`
+  return hms + (d.getMilliseconds() / 1000).toFixed(digits).slice(1)
 }
 
 function clockLabel(sec: number): string {
@@ -160,6 +160,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           {
             // 時刻ラベルは最下段だけ。グリッドは全段に要るので軸自体は消さず高さを0にする
             size: isLast ? X_AXIS_H : 0,
+            space: 90, // 最長の HH:MM:SS.mmm ラベルが隣と被らない間隔
             stroke: muted,
             font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
