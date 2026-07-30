@@ -18,6 +18,8 @@ const classes: { min: number; c: JmaClass }[] = [
   { min: 0.5, c: { label: "1", bg: "#f2f2ff", fg: "#111110" } },
 ]
 
+export const MIN_DISPLAY_INTENSITY = -0.5
+
 export function jmaClass(intensity: number): JmaClass {
   for (const { min, c } of classes) {
     if (intensity >= min) return c

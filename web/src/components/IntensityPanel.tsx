@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { fmtTime, jmaClass } from "../lib/jma"
+import { fmtTime, jmaClass, MIN_DISPLAY_INTENSITY } from "../lib/jma"
 import type { IntMsg, Sample, Status } from "../lib/types"
 import { Field, Reading } from "./readout"
 
@@ -28,7 +28,7 @@ export default function IntensityPanel({ status, intensity, waveRef }: Props) {
 
   const stable = intensity ? intensity.stable : (status?.stable ?? false)
   const value = intensity?.intensity ?? status?.intensity ?? null
-  const cls = value !== null ? jmaClass(value) : null
+  const cls = value !== null && value >= MIN_DISPLAY_INTENSITY ? jmaClass(value) : null
   const active = status?.active ?? null
 
   return (

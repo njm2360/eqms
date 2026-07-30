@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import HistoryView from "./components/HistoryView"
 import IntensityPanel from "./components/IntensityPanel"
 import WaveformPlot from "./components/WaveformPlot"
-import { jmaClass } from "./lib/jma"
+import { jmaClass, MIN_DISPLAY_INTENSITY } from "./lib/jma"
 import { readQuery, updateQuery } from "./lib/urlState"
 import { useStream } from "./lib/useStream"
 
@@ -19,7 +19,8 @@ export default function App() {
   const { status, intensity, streamOk, eqCount, waveRef } = useStream()
   const [tab, setTab] = useState<Tab>(() => (readQuery("tab") === "history" ? "history" : "realtime"))
 
-  const intensityNow = intensity?.intensity ?? status?.intensity ?? null
+  const raw = intensity?.intensity ?? status?.intensity ?? null
+  const intensityNow = raw !== null && raw >= MIN_DISPLAY_INTENSITY ? raw : null
   useEffect(() => {
     document.title =
       intensityNow !== null ? `震度${jmaClass(intensityNow).label} (${intensityNow.toFixed(1)}) - ${BASE_TITLE}` : BASE_TITLE
