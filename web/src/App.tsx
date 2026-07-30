@@ -36,9 +36,9 @@ export default function App() {
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--border)] py-3">
         <span className="font-semibold tracking-tight">eqms</span>
         {/* 正常時は何も出さない。初回ロード中 (status 未着) も未判定なので出さない */}
-        {status !== null && !streamOk && <span className="text-xs text-[var(--bad)]">サーバーと再接続中</span>}
+        {status !== null && !streamOk && <span className="text-sm text-[var(--bad)]">サーバーと再接続中</span>}
         {status !== null && streamOk && !status.connected && (
-          <span className="text-xs text-[var(--bad)]">地震計からデータが届いていません</span>
+          <span className="text-sm text-[var(--bad)]">地震計からデータが届いていません</span>
         )}
         <nav className="ml-auto flex gap-1">
           {TABS.map(([key, label]) => (

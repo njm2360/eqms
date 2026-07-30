@@ -28,8 +28,8 @@ const PANE_MIN_H = 96
 const PANE_MAX_H = 220
 const BOTTOM_GAP = 16 // 画面下端に残す余白
 const EDGE_PAD = 8 // 各段の上下端の目盛りラベルが半分はみ出さない幅
-const X_AXIS_H = 26
-const Y_AXIS_W = 46
+const X_AXIS_H = 28
+const Y_AXIS_W = 52
 const X_LABEL_PAD = 16 // 右端の時刻ラベルが欠けない幅
 
 // 画面の残り高さを段数で割ってプロット領域の高さを決める
@@ -161,7 +161,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
             // 時刻ラベルは最下段だけ。グリッドは全段に要るので軸自体は消さず高さを0にする
             size: isLast ? X_AXIS_H : 0,
             stroke: muted,
-            font: "10px system-ui",
+            font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
             ticks: { show: false },
             values: (_u, splits, _ai, _space, incr) =>
@@ -170,7 +170,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           {
             size: Y_AXIS_W,
             stroke: muted,
-            font: "10px system-ui",
+            font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
             ticks: { show: false },
             // スケール範囲外の値を返すとラベルが枠の外へ出る。全幅はピークちょうどに置く
@@ -377,7 +377,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4 pb-1 text-[11px] text-[var(--text-muted)]">
+      <div className="flex items-baseline justify-between gap-4 pb-1 text-sm text-[var(--text-muted)]">
         <span>{label}</span>
         <span className="flex items-baseline gap-x-3 tabular-nums">
           {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
@@ -399,7 +399,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
         {AXES.map((axis, i) => (
           <span
             key={axis.label}
-            className="pointer-events-none absolute z-10 text-[11px] font-bold"
+            className="pointer-events-none absolute z-10 text-xs font-bold"
             style={{ color: `var(${axis.cssVar})`, left: Y_AXIS_W + 6, top: i * (paneH + EDGE_PAD * 2) + EDGE_PAD + 3 }}
           >
             {axis.label}

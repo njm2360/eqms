@@ -175,13 +175,13 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
           )}
           {sel.maxPga !== null && <Field label="最大加速度" value={`${sel.maxPga.toFixed(1)} gal`} />}
           {wave && wave.segments.length > 1 && (
-            <span className="text-xs text-[var(--text-muted)]">欠落 {wave.segments.length - 1} 箇所</span>
+            <span className="text-sm text-[var(--text-muted)]">欠落 {wave.segments.length - 1} 箇所</span>
           )}
         </div>
         <div className="flex shrink-0 gap-2">
           {!waveGone && (
             <button
-              className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
+              className="rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
               onClick={exportCsv}
               disabled={exporting}
             >
@@ -189,14 +189,14 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
             </button>
           )}
           <button
-            className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
+            className="rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
             onClick={() => bounds && setView(bounds)}
             disabled={!zoomed}
           >
             全体表示
           </button>
           <button
-            className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
+            className="rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
             onClick={() => select(null)}
           >
             閉じる
@@ -235,7 +235,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
         <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface-1)] lg:shrink-0">
           <table className="w-full whitespace-nowrap text-sm">
             <thead>
-              <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
+              <tr className="border-b border-[var(--border)] text-left text-sm text-[var(--text-muted)]">
                 <th className="px-4 py-2 font-normal">#</th>
                 <th className="px-4 py-2 font-normal">検知時刻</th>
                 <th className="px-4 py-2 font-normal">継続時間</th>
@@ -276,7 +276,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
             </tbody>
           </table>
           {/* 監視対象。全件読み終えたあとも消さない */}
-          <div ref={loadMoreRef} className="py-3 text-center text-xs text-[var(--text-muted)]">
+          <div ref={loadMoreRef} className="py-3 text-center text-sm text-[var(--text-muted)]">
             {loading ? "読み込み中…" : !end && events.length > 0 ? "スクロールで続きを読み込み" : ""}
           </div>
         </div>
