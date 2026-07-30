@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { fmtTime, jmaClass, MIN_DISPLAY_INTENSITY } from "../lib/jma"
+import { fmtTime } from "../lib/format"
+import { jmaClass, MIN_DISPLAY_INTENSITY } from "../lib/jma"
 import type { IntMsg, Sample, Status } from "../lib/types"
 import { Field, Reading } from "./readout"
 

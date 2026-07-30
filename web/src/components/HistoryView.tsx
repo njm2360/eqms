@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { EVENTS_PAGE_SIZE, fetchEvent, fetchEvents, fetchWaveform, nextCursor, type EventsCursor } from "../lib/api"
-import { fmtDuration, fmtTime, jmaClass } from "../lib/jma"
+import { downloadWaveformCsv } from "../lib/csv"
+import { fmtDuration, fmtTime } from "../lib/format"
+import { jmaClass } from "../lib/jma"
 import { readQuery, updateQuery } from "../lib/urlState"
 import type { EqEvent, WaveformRange } from "../lib/types"
 import { Field, IntensityBadge } from "./readout"
@@ -149,26 +151,11 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
   const zoomed = !!(view && bounds && view.to - view.from < bounds.to - bounds.from - 1)
   const waveGone = wave !== null && wave.segments.length === 0 && !zoomed
 
-  // 生サンプルの CSV。全期間を一度に引くと間引かれるため、窓に分けて集める
   const exportCsv = async () => {
     if (!sel || !bounds || exporting) return
     setExporting(true)
     try {
-      const rows = ["t,x,y,z"]
-      const step = 180_000 // 18000サンプル。サーバー上限の20000点に収まり間引きされない
-      for (let from = bounds.from; from < bounds.to; from += step) {
-        const w = await fetchWaveform(from, Math.min(from + step, bounds.to), 20000)
-        for (const s of w.segments) {
-          if (!s.x || !s.y || !s.z) continue
-          for (let i = 0; i < s.n; i++) rows.push(`${s.t0 + i * s.dt},${s.x[i]},${s.y[i]},${s.z[i]}`)
-        }
-      }
-      const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }))
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `eqms-${sel.id}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadWaveformCsv(bounds.from, bounds.to, `eqms-${sel.id}.csv`)
     } catch (e) {
       setError(String(e))
     } finally {
