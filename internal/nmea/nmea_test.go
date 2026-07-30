@@ -51,6 +51,19 @@ func TestParseHWInfo(t *testing.T) {
 	}
 }
 
+func TestParseBootReason(t *testing.T) {
+	v, err := Parse(Format("XSRST,USB"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := v.(BootReason); b.ID != "USB" {
+		t.Fatalf("bad: %+v", b)
+	}
+	if _, err := Parse(Format("XSRST")); err == nil {
+		t.Fatal("XSRST without a field should fail")
+	}
+}
+
 func TestParseIgnored(t *testing.T) {
 	v, err := Parse(Format("XSRAW,100,200,300"))
 	if err != nil || v != nil {

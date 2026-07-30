@@ -259,6 +259,8 @@ func (e *Engine) handle(ev source.Event) {
 			e.lastDevErr, e.lastDevErrAt = s.ID, e.eventTime()
 			log.Printf("engine: device error: %s", s.ID)
 			e.hub.PublishKeep("deverr", DevErrMsg{T: e.lastDevErrAt, ID: s.ID})
+		case nmea.BootReason:
+			log.Printf("engine: device booted: %s", s.ID)
 		}
 	}
 }

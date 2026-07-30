@@ -34,6 +34,11 @@ type DevErr struct {
 	ID string
 }
 
+// BootReason は XSRST (起動要因)。HWINFO の応答として返る。
+type BootReason struct {
+	ID string
+}
+
 // Format はペイロードを $...*XX 形式にする (シミュレータとテスト用)。
 func Format(payload string) string {
 	var sum byte
@@ -122,6 +127,12 @@ func Parse(line string) (any, error) {
 			return nil, fmt.Errorf("nmea: XSEER needs 1 field: %q", line)
 		}
 		return DevErr{ID: f[1]}, nil
+
+	case "XSRST":
+		if len(f) != 2 {
+			return nil, fmt.Errorf("nmea: XSRST needs 1 field: %q", line)
+		}
+		return BootReason{ID: f[1]}, nil
 
 	default:
 		return nil, nil
