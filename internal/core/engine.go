@@ -40,6 +40,8 @@ const (
 	// サンプルがこれだけ途切れたら異常とみなす。再接続には無音判定と
 	// リトライ間隔がかかるので、正常な抜き差しで 503 にしない幅を取る
 	healthStaleSample = 30 * time.Second
+	// 書き込み失敗がこれだけ止まったら health を回復させる
+	healthWriteErrQuiet = 5 * time.Minute
 )
 
 // ErrNotRunning は Run が動いていないエンジンに購読を求めたときに返る。
@@ -83,6 +85,10 @@ type Engine struct {
 	// 途絶判定用。壁時計の飛びを拾わないよう time.Since で測る
 	lastSampleAt time.Time
 
+	// Writer カウンタの増分検出。増えた時刻を health が見る
+	prevDropped, prevFailed int64
+	lastWriteErrAt          time.Time
+
 	// アーカイブ済みサンプルの終端。ここより前には遡って書かない
 	persistCursor int64
 
@@ -97,8 +103,9 @@ type Engine struct {
 
 // snapshot の中身は差し替え後に書き換えない。読み取り側はロックなしで参照する。
 type snapshot struct {
-	status       StatusMsg
-	lastSampleAt time.Time
+	status         StatusMsg
+	lastSampleAt   time.Time
+	lastWriteErrAt time.Time
 }
 
 // Config のゼロ値フィールドはデフォルトになる (Retention の 0 は無期限)。
@@ -204,7 +211,7 @@ func (e *Engine) prune() {
 // refresh は読み取り用のスナップショットを作り直す。状態を変えたら必ず通る。
 func (e *Engine) refresh() StatusMsg {
 	st := e.buildStatus()
-	e.snap.Store(&snapshot{status: st, lastSampleAt: e.lastSampleAt})
+	e.snap.Store(&snapshot{status: st, lastSampleAt: e.lastSampleAt, lastWriteErrAt: e.lastWriteErrAt})
 	return st
 }
 
@@ -321,6 +328,10 @@ func (e *Engine) eventTime() int64 {
 }
 
 func (e *Engine) tick() {
+	if d, f := e.w.Dropped(), e.w.Failed(); d != e.prevDropped || f != e.prevFailed {
+		e.prevDropped, e.prevFailed = d, f
+		e.lastWriteErrAt = time.Now()
+	}
 	if e.rec != nil && !e.lastSampleAt.IsZero() && time.Since(e.lastSampleAt) > staleSample {
 		log.Printf("engine: no samples for %s, closing event %d", staleSample, e.rec.id)
 		e.finishEvent(e.lastSampleT)

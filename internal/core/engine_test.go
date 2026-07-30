@@ -472,6 +472,21 @@ func TestHealth(t *testing.T) {
 	}
 
 	h.inspect(t, func(e *Engine) {
+		e.lastWriteErrAt = time.Now()
+		e.refresh()
+	})
+	if got := h.e.Health(); got.OK {
+		t.Fatalf("ok right after a write error: %+v", got)
+	}
+	h.inspect(t, func(e *Engine) {
+		e.lastWriteErrAt = time.Now().Add(-2 * healthWriteErrQuiet)
+		e.refresh()
+	})
+	if got := h.e.Health(); !got.OK {
+		t.Fatalf("not ok after write errors stopped: %+v", got)
+	}
+
+	h.inspect(t, func(e *Engine) {
 		e.lastSampleAt = time.Now().Add(-2 * healthStaleSample)
 		e.refresh()
 	})

@@ -73,10 +73,11 @@ func (e *Engine) Status() StatusMsg {
 	return st
 }
 
-// Health は監視用に、地震計からサンプルが届いているかを返す。
+// Health は監視用に、サンプルが届いていて書き込みも失敗していないかを返す。
 func (e *Engine) Health() HealthMsg {
 	s := e.snap.Load()
-	ok := s.status.Connected && !s.lastSampleAt.IsZero() && time.Since(s.lastSampleAt) <= healthStaleSample
+	ok := s.status.Connected && !s.lastSampleAt.IsZero() && time.Since(s.lastSampleAt) <= healthStaleSample &&
+		(s.lastWriteErrAt.IsZero() || time.Since(s.lastWriteErrAt) > healthWriteErrQuiet)
 	return HealthMsg{OK: ok}
 }
 
