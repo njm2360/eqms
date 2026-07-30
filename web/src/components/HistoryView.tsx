@@ -23,6 +23,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sel, setSel] = useState<EqEvent | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [wave, setWave] = useState<WaveformRange | null>(null)
   const [bounds, setBounds] = useState<View | null>(null)
   const [view, setView] = useState<View | null>(null)
@@ -146,6 +147,34 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
   }, [sel])
 
   const zoomed = !!(view && bounds && view.to - view.from < bounds.to - bounds.from - 1)
+  const waveGone = wave !== null && wave.segments.length === 0 && !zoomed
+
+  // 生サンプルの CSV。全期間を一度に引くと間引かれるため、窓に分けて集める
+  const exportCsv = async () => {
+    if (!sel || !bounds || exporting) return
+    setExporting(true)
+    try {
+      const rows = ["t,x,y,z"]
+      const step = 180_000 // 18000サンプル。サーバー上限の20000点に収まり間引きされない
+      for (let from = bounds.from; from < bounds.to; from += step) {
+        const w = await fetchWaveform(from, Math.min(from + step, bounds.to), 20000)
+        for (const s of w.segments) {
+          if (!s.x || !s.y || !s.z) continue
+          for (let i = 0; i < s.n; i++) rows.push(`${s.t0 + i * s.dt},${s.x[i]},${s.y[i]},${s.z[i]}`)
+        }
+      }
+      const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }))
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `eqms-${sel.id}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const detail = sel && (
     // スマホは全画面モーダル、lg 以上は右カラムとして固定表示
@@ -163,14 +192,22 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
           )}
         </div>
         <div className="flex shrink-0 gap-2">
-          {zoomed && (
+          {!waveGone && (
             <button
-              className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
-              onClick={() => bounds && setView(bounds)}
+              className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
+              onClick={exportCsv}
+              disabled={exporting}
             >
-              全体
+              CSV保存
             </button>
           )}
+          <button
+            className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"
+            onClick={() => bounds && setView(bounds)}
+            disabled={!zoomed}
+          >
+            全体表示
+          </button>
           <button
             className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
             onClick={() => select(null)}
@@ -181,7 +218,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
       </div>
 
       <div ref={plotBoxRef}>
-        {wave !== null && wave.segments.length === 0 && !zoomed ? (
+        {waveGone ? (
           <div className="py-12 text-center text-sm text-[var(--text-muted)]">
             この記録の波形は保持期間を過ぎて削除されています
           </div>
@@ -190,7 +227,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
           view && (
             <WaveformPlot
               key={sel.id} // 記録を切り替えたら前の波形を持ち越さない
-              label="加速度 gal　ホイールで拡大 ドラッグで移動 ダブルクリックで全体"
+              label="加速度 gal"
               range={wave ?? undefined}
               view={view}
               bounds={bounds}
