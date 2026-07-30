@@ -242,36 +242,71 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           const k = e.deltaY < 0 ? 0.8 : 1.25
           applyView({ from: at - (at - v.from) * k, to: at + (v.to - at) * k })
         }
-        // ドラッグ移動。押している間だけ window で追う
-        const onDown = (e: MouseEvent) => {
-          if (e.button !== 0) return
-          const start = viewRef.current
-          if (!start) return
-          const startX = e.clientX
-          const width = u.over.getBoundingClientRect().width
-          u.over.style.cursor = "grabbing"
-          const onMove = (m: MouseEvent) => {
-            const dt = ((startX - m.clientX) / width) * (start.to - start.from)
-            applyView({ from: start.from + dt, to: start.to + dt })
-          }
-          const onUp = () => {
-            u.over.style.cursor = "grab"
-            window.removeEventListener("mousemove", onMove)
-            window.removeEventListener("mouseup", onUp)
-          }
-          window.addEventListener("mousemove", onMove)
-          window.addEventListener("mouseup", onUp)
-        }
         const onDouble = () => {
           const b = boundsRef.current
           if (b) applyView(b)
         }
+
+        // ドラッグ移動とピンチ拡大。マウスもタッチも Pointer Events で扱う。
+        // 指の下の時刻が動かないように、指の数が変わるたびに基準を取り直す
+        const pointers = new Map<number, number>() // pointerId -> 幅に対する割合
+        let base: View | null = null
+        let baseFracs: number[] = []
+        let lastTap = 0
+        const frac = (e: PointerEvent) => {
+          const rect = u.over.getBoundingClientRect()
+          return (e.clientX - rect.left) / rect.width
+        }
+        const rebase = () => {
+          base = viewRef.current
+          baseFracs = [...pointers.values()]
+        }
+        const onDown = (e: PointerEvent) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return
+          if (e.pointerType !== "mouse" && pointers.size === 0) {
+            // タッチには dblclick が来ないので自前でダブルタップ判定
+            const now = performance.now()
+            if (now - lastTap < 300) onDouble()
+            lastTap = now
+          }
+          u.over.setPointerCapture(e.pointerId)
+          pointers.set(e.pointerId, frac(e))
+          rebase()
+          u.over.style.cursor = "grabbing"
+        }
+        const onMove = (e: PointerEvent) => {
+          if (!pointers.has(e.pointerId) || !base) return
+          pointers.set(e.pointerId, frac(e))
+          const cur = [...pointers.values()]
+          const span = base.to - base.from
+          if (cur.length >= 2 && Math.abs(cur[1] - cur[0]) > 0.01) {
+            const newSpan = (span * Math.abs(baseFracs[1] - baseFracs[0])) / Math.abs(cur[1] - cur[0])
+            const from = base.from + ((baseFracs[0] + baseFracs[1]) / 2) * span - ((cur[0] + cur[1]) / 2) * newSpan
+            applyView({ from, to: from + newSpan })
+          } else {
+            const from = base.from + (baseFracs[0] - cur[0]) * span
+            applyView({ from, to: from + span })
+          }
+        }
+        const onUp = (e: PointerEvent) => {
+          if (!pointers.delete(e.pointerId)) return
+          rebase()
+          if (pointers.size === 0) u.over.style.cursor = "grab"
+        }
+
+        u.over.style.touchAction = "none" // ブラウザのスクロール/ズームに取られない
         u.over.addEventListener("wheel", onWheel, { passive: false })
-        u.over.addEventListener("mousedown", onDown)
+        u.over.addEventListener("pointerdown", onDown)
+        u.over.addEventListener("pointermove", onMove)
+        u.over.addEventListener("pointerup", onUp)
+        u.over.addEventListener("pointercancel", onUp)
         u.over.addEventListener("dblclick", onDouble)
         cleanups.push(() => {
           u.over.removeEventListener("wheel", onWheel)
-          u.over.removeEventListener("mousedown", onDown)
+          u.over.removeEventListener("pointerdown", onDown)
+          u.over.removeEventListener("pointermove", onMove)
+          u.over.removeEventListener("pointerup", onUp)
+          u.over.removeEventListener("pointercancel", onUp)
           u.over.removeEventListener("dblclick", onDouble)
         })
       }
