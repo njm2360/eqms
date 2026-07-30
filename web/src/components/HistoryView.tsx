@@ -135,115 +135,133 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
     }
   }, [view])
 
+  // モーダル表示中の取り残され防止。PC の右カラムでも閉じられて困らない
+  useEffect(() => {
+    if (!sel) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") select(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [sel])
+
   const zoomed = !!(view && bounds && view.to - view.from < bounds.to - bounds.from - 1)
+
+  const detail = sel && (
+    // スマホは全画面モーダル、lg 以上は右カラムとして固定表示
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[var(--surface-0)] p-4 lg:sticky lg:inset-auto lg:top-4 lg:z-auto lg:min-w-0 lg:flex-1 lg:overflow-visible lg:rounded-lg lg:border lg:border-[var(--border)] lg:bg-[var(--surface-1)]">
+      <div className="mb-3 flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+          <span className="font-medium">記録 #{sel.id}</span>
+          <Field label="検知" value={fmtTime(sel.triggeredAt)} />
+          {sel.maxIntensity !== null && (
+            <Field label="最大震度" value={`${jmaClass(sel.maxIntensity).label} (${sel.maxIntensity.toFixed(1)})`} />
+          )}
+          {sel.maxPga !== null && <Field label="最大加速度" value={`${sel.maxPga.toFixed(1)} gal`} />}
+          {wave && wave.segments.length > 1 && (
+            <span className="text-xs text-[var(--text-muted)]">欠落 {wave.segments.length - 1} 箇所</span>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-2">
+          {zoomed && (
+            <button
+              className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
+              onClick={() => bounds && setView(bounds)}
+            >
+              全体
+            </button>
+          )}
+          <button
+            className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
+            onClick={() => select(null)}
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+
+      <div ref={plotBoxRef}>
+        {wave !== null && wave.segments.length === 0 && !zoomed ? (
+          <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+            この記録の波形は保持期間を過ぎて削除されています
+          </div>
+        ) : (
+          bounds &&
+          view && (
+            <WaveformPlot
+              key={sel.id} // 記録を切り替えたら前の波形を持ち越さない
+              label="加速度 gal　ホイールで拡大 ドラッグで移動 ダブルクリックで全体"
+              range={wave ?? undefined}
+              view={view}
+              bounds={bounds}
+              onViewChange={setView}
+            />
+          )
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-4">
-      {sel && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4">
-          <div className="mb-3 flex items-start justify-between gap-4">
-            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-              <span className="font-medium">記録 #{sel.id}</span>
-              <Field label="検知" value={fmtTime(sel.triggeredAt)} />
-              {sel.maxIntensity !== null && (
-                <Field
-                  label="最大震度"
-                  value={`${jmaClass(sel.maxIntensity).label} (${sel.maxIntensity.toFixed(1)})`}
-                />
-              )}
-              {sel.maxPga !== null && <Field label="最大加速度" value={`${sel.maxPga.toFixed(1)} gal`} />}
-              {wave && wave.segments.length > 1 && (
-                <span className="text-xs text-[var(--text-muted)]">欠落 {wave.segments.length - 1} 箇所</span>
-              )}
-            </div>
-            <div className="flex shrink-0 gap-2">
-              {zoomed && (
-                <button
-                  className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
-                  onClick={() => bounds && setView(bounds)}
-                >
-                  全体
-                </button>
-              )}
-              <button
-                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--border)]"
-                onClick={() => select(null)}
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-
-          <div ref={plotBoxRef}>
-            {wave !== null && wave.segments.length === 0 && !zoomed ? (
-              <div className="py-12 text-center text-sm text-[var(--text-muted)]">
-                この記録の波形は保持期間を過ぎて削除されています
-              </div>
-            ) : (
-              bounds &&
-              view && (
-                <WaveformPlot
-                  key={sel.id} // 記録を切り替えたら前の波形を持ち越さない
-                  label="加速度 gal　ホイールで拡大 ドラッグで移動 ダブルクリックで全体"
-                  range={wave ?? undefined}
-                  view={view}
-                  bounds={bounds}
-                  onViewChange={setView}
-                />
-              )
-            )}
-          </div>
-        </div>
-      )}
-
       {error && <div className="text-sm text-[var(--bad)]">{error}</div>}
 
-      <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface-1)]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
-              <th className="px-4 py-2 font-normal">#</th>
-              <th className="px-4 py-2 font-normal">検知時刻</th>
-              <th className="px-4 py-2 font-normal">継続時間</th>
-              <th className="px-4 py-2 font-normal">最大震度</th>
-              <th className="px-4 py-2 font-normal">最大加速度</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.length === 0 && end && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--text-muted)]">
-                  地震記録はまだありません
-                </td>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* 一覧は折り返さず内容幅、残りを波形に渡す */}
+        <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface-1)] lg:shrink-0">
+          <table className="w-full whitespace-nowrap text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
+                <th className="px-4 py-2 font-normal">#</th>
+                <th className="px-4 py-2 font-normal">検知時刻</th>
+                <th className="px-4 py-2 font-normal">継続時間</th>
+                <th className="px-4 py-2 font-normal">最大震度</th>
+                <th className="px-4 py-2 font-normal">最大加速度</th>
               </tr>
-            )}
-            {events.map((e) => (
-              <tr
-                key={e.id}
-                className={`cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--border)]/40 ${
-                  sel?.id === e.id ? "bg-[var(--border)]/60" : ""
-                }`}
-                onClick={() => select(e)}
-              >
-                <td className="px-4 py-2 tabular-nums text-[var(--text-muted)]">{e.id}</td>
-                <td className="px-4 py-2 tabular-nums">{fmtTime(e.triggeredAt)}</td>
-                <td className="px-4 py-2 tabular-nums">
-                  {e.endedAt !== null ? (
-                    fmtDuration(e.endedAt - e.triggeredAt)
-                  ) : (
-                    <span className="text-[var(--bad)]">記録中</span>
-                  )}
-                </td>
-                <td className="px-4 py-2">{e.maxIntensity !== null ? <IntensityBadge value={e.maxIntensity} /> : "-"}</td>
-                <td className="px-4 py-2 tabular-nums">{e.maxPga !== null ? `${e.maxPga.toFixed(1)} gal` : "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* 監視対象。全件読み終えたあとも消さない */}
-        <div ref={loadMoreRef} className="py-3 text-center text-xs text-[var(--text-muted)]">
-          {loading ? "読み込み中…" : !end && events.length > 0 ? "スクロールで続きを読み込み" : ""}
+            </thead>
+            <tbody>
+              {events.length === 0 && end && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    地震記録はまだありません
+                  </td>
+                </tr>
+              )}
+              {events.map((e) => (
+                <tr
+                  key={e.id}
+                  className={`cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--border)]/40 ${sel?.id === e.id ? "bg-[var(--border)]/60" : ""
+                    }`}
+                  onClick={() => select(e)}
+                >
+                  <td className="px-4 py-2 tabular-nums text-[var(--text-muted)]">{e.id}</td>
+                  <td className="px-4 py-2 tabular-nums">{fmtTime(e.triggeredAt)}</td>
+                  <td className="px-4 py-2 tabular-nums">
+                    {e.endedAt !== null ? (
+                      fmtDuration(e.endedAt - e.triggeredAt)
+                    ) : (
+                      <span className="text-[var(--bad)]">記録中</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {e.maxIntensity !== null ? <IntensityBadge value={e.maxIntensity} /> : "-"}
+                  </td>
+                  <td className="px-4 py-2 tabular-nums">{e.maxPga !== null ? `${e.maxPga.toFixed(1)} gal` : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* 監視対象。全件読み終えたあとも消さない */}
+          <div ref={loadMoreRef} className="py-3 text-center text-xs text-[var(--text-muted)]">
+            {loading ? "読み込み中…" : !end && events.length > 0 ? "スクロールで続きを読み込み" : ""}
+          </div>
         </div>
+
+        {detail || (
+          <div className="hidden min-h-64 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)] lg:flex">
+            一覧から記録を選択すると波形が表示されます
+          </div>
+        )}
       </div>
     </div>
   )
