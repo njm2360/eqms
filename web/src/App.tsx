@@ -13,7 +13,7 @@ const TABS: [Tab, string][] = [
   ["history", "地震記録"],
 ]
 
-const BASE_TITLE = "eqms 地震計モニター"
+const BASE_TITLE = "EQMS 地震計モニター"
 
 export default function App() {
   const { status, intensity, streamOk, eqCount, waveRef } = useStream()
@@ -34,7 +34,7 @@ export default function App() {
   return (
     <div className="mx-auto flex min-h-screen max-w-[90rem] flex-col px-4">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--border)] py-3">
-        <span className="font-semibold tracking-tight">eqms</span>
+        <span className="font-semibold tracking-tight">EQMS</span>
         {/* 正常時は何も出さない。初回ロード中 (status 未着) も未判定なので出さない */}
         {status !== null && !streamOk && <span className="text-sm text-[var(--bad)]">サーバーと再接続中</span>}
         {status !== null && streamOk && !status.connected && (

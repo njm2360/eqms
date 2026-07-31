@@ -155,7 +155,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
     if (!sel || !bounds || exporting) return
     setExporting(true)
     try {
-      await downloadWaveformCsv(bounds.from, bounds.to, `eqms-${sel.id}.csv`)
+      await downloadWaveformCsv(bounds.from, bounds.to, `EQMS-${sel.id}.csv`)
     } catch (e) {
       setError(String(e))
     } finally {
