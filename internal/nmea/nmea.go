@@ -13,6 +13,11 @@ type Acc struct {
 	X, Y, Z float64
 }
 
+// Raw は XSRAW (ADC 生カウント, 100Hz)。対になる XSACC の直前に出力される。
+type Raw struct {
+	X, Y, Z int16
+}
+
 // Intensity は XSINT (計測震度相当, 5Hz)。
 type Intensity struct {
 	Value  float64 // Stable=false のとき NaN
@@ -48,7 +53,7 @@ func Format(payload string) string {
 	return fmt.Sprintf("$%s*%02X", payload, sum)
 }
 
-// Parse は1行を解析する。無視対象のセンテンス (XSRAW や XSCFG) は (nil, nil) を返す。
+// Parse は1行を解析する。無視対象のセンテンス (XSCFG など) は (nil, nil) を返す。
 func Parse(line string) (any, error) {
 	line = strings.TrimSpace(line)
 	if len(line) < 4 || line[0] != '$' {
@@ -89,6 +94,20 @@ func Parse(line string) (any, error) {
 			}
 		}
 		return Acc{X: v[0], Y: v[1], Z: v[2]}, nil
+
+	case "XSRAW":
+		if len(f) != 4 {
+			return nil, fmt.Errorf("nmea: XSRAW needs 3 fields: %q", line)
+		}
+		var v [3]int16
+		for i := range 3 {
+			n, err := strconv.ParseInt(f[i+1], 10, 16)
+			if err != nil {
+				return nil, fmt.Errorf("nmea: XSRAW field %d: %w", i+1, err)
+			}
+			v[i] = int16(n)
+		}
+		return Raw{X: v[0], Y: v[1], Z: v[2]}, nil
 
 	case "XSINT":
 		// $XSINT,-1.0,計測震度 (第1フィールドは固定値で無意味)

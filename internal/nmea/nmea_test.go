@@ -64,10 +64,27 @@ func TestParseBootReason(t *testing.T) {
 	}
 }
 
+func TestParseRaw(t *testing.T) {
+	v, err := Parse(Format("XSRAW,100,-200,300"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, ok := v.(Raw)
+	if !ok {
+		t.Fatalf("want Raw, got %T", v)
+	}
+	if raw.X != 100 || raw.Y != -200 || raw.Z != 300 {
+		t.Fatalf("bad values: %+v", raw)
+	}
+	if _, err := Parse(Format("XSRAW,100000,0,0")); err == nil {
+		t.Fatal("out-of-range count should fail")
+	}
+}
+
 func TestParseIgnored(t *testing.T) {
-	v, err := Parse(Format("XSRAW,100,200,300"))
+	v, err := Parse(Format("XSCFG,DUMMY,1"))
 	if err != nil || v != nil {
-		t.Fatalf("XSRAW should be ignored: %v %v", v, err)
+		t.Fatalf("XSCFG should be ignored: %v %v", v, err)
 	}
 }
 

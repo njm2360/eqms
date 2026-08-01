@@ -94,6 +94,7 @@ func (h *harness) drive(t *testing.T, phases ...phase) {
 				time.Sleep(d)
 			}
 			now := time.Now()
+			h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSRAW,%d,0,0", int16(p.amp))), Recv: now}
 			h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSACC,%.2f,0.00,0.00", p.amp)), Recv: now}
 			if n%20 == 0 {
 				h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSINT,-1.0,%.1f", p.intensity)), Recv: now}
@@ -121,6 +122,7 @@ func (h *harness) feedAt(t *testing.T, base time.Time, off time.Duration, n int,
 	t.Helper()
 	for i := range n {
 		recv := base.Add(off + time.Duration(i)*10*time.Millisecond)
+		h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSRAW,%d,0,0", int16(amp))), Recv: recv}
 		h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSACC,%.2f,0.00,0.00", amp)), Recv: recv}
 		if i%20 == 0 {
 			h.ch <- source.Line{Text: nmea.Format(fmt.Sprintf("XSINT,-1.0,%.1f", intensity)), Recv: recv}
@@ -605,6 +607,47 @@ func TestEqEventSurvivesSlowSubscriber(t *testing.T) {
 		default:
 			t.Fatal("eqevent did not reach the subscriber")
 		}
+	}
+}
+
+// 生カウントは波形と同じ範囲・同じサンプル数でアーカイブされること。
+func TestRawArchivedAlongsideWaveform(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, 600, 300, time.Hour.Milliseconds())
+	h.drive(t,
+		phase{800, 0.0, 0.1},
+		phase{600, 2.0, 50.0},
+	)
+	h.closeActive(t)
+
+	ev := h.eventsAsc(t)[0]
+	wf, err := h.st.Range(ev.StartedAt, *ev.EndedAt, 1_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raws, err := h.st.RawRange(ev.StartedAt, *ev.EndedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wfN, rawN := 0, 0
+	for _, s := range wf.Segments {
+		wfN += s.N
+	}
+	var found bool
+	for _, s := range raws {
+		rawN += s.N
+		for _, v := range s.X {
+			if v == 50 {
+				found = true
+			}
+		}
+	}
+	if wfN == 0 || rawN != wfN {
+		t.Fatalf("raw samples=%d, waveform samples=%d", rawN, wfN)
+	}
+	if !found {
+		t.Fatal("raw counts were not archived")
 	}
 }
 

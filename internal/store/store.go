@@ -1,5 +1,5 @@
-// Package store は SQLite 永続化。chunks は地震記録中だけ書かれる波形アーカイブで、
-// events はその範囲を指す注釈。記録していない間の波形は残らない。
+// Package store は SQLite 永続化。chunks / raw_chunks は地震記録中だけ書かれる
+// 波形アーカイブで、events はその範囲を指す注釈。記録していない間の波形は残らない。
 package store
 
 import (
@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS events (
   max_pga       REAL
 );
 CREATE TABLE IF NOT EXISTS chunks (
+  t0   INTEGER PRIMARY KEY,
+  n    INTEGER NOT NULL,
+  data BLOB    NOT NULL
+);
+CREATE TABLE IF NOT EXISTS raw_chunks (
   t0   INTEGER PRIMARY KEY,
   n    INTEGER NOT NULL,
   data BLOB    NOT NULL

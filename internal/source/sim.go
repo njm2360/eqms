@@ -16,6 +16,8 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 		stabilizeSec  = 10
 		quakePeriod   = 90.0
 		quakeDuration = 15.0
+		// EQIS2 (ADXL355 ±2g, 16bit) の 1LSB あたりの gal
+		stepGal = 980.665 / 16000
 	)
 	send(ctx, ch, Connected{Port: "(simulator)"})
 	send(ctx, ch, Line{Text: nmea.Format("XSHWI,1,eqms-sim;0.0.1,SIM,SIM,SIM,1.0"), Recv: time.Now()})
@@ -46,6 +48,11 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 			comp := math.Sqrt(x*x + y*y + z*z)
 			envelope = math.Max(comp, envelope*0.995)
 
+			// ファームは (オフセット - 生カウント) × 感度 = 加速度で出力する
+			raw := func(g float64) int16 { return int16(math.Round(-g / stepGal)) }
+			if !send(ctx, ch, Line{Text: nmea.Format(fmt.Sprintf("XSRAW,%d,%d,%d", raw(x), raw(y), raw(z))), Recv: now}) {
+				return
+			}
 			if !send(ctx, ch, Line{Text: nmea.Format(fmt.Sprintf("XSACC,%.2f,%.2f,%.2f", x, y, z)), Recv: now}) {
 				return
 			}

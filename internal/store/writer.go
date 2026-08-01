@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	writeQueueLen = 2048 // 記録中は毎秒2件。ディスクが十数分止まっても取りこぼさない深さ
+	writeQueueLen = 2048 // 記録中は毎秒3件。ディスクが十数分止まっても取りこぼさない深さ
 
 	// 保守作業を1ステップで進める量。前景ジョブへ戻る間隔になる
 	pruneBatchRows = 2000
@@ -85,6 +85,13 @@ func (w *Writer) AppendChunk(t0 int64, x, y, z []float32) {
 	n := len(x)
 	data := encodeChunk(x, y, z)
 	w.submit("append chunk", func(s *Store) error { return s.appendChunk(t0, n, data) })
+}
+
+// AppendRawChunk が戻った時点で x,y,z は再利用してよい。
+func (w *Writer) AppendRawChunk(t0 int64, x, y, z []int16) {
+	n := len(x)
+	data := encodeRawChunk(x, y, z)
+	w.submit("append raw chunk", func(s *Store) error { return s.appendRawChunk(t0, n, data) })
 }
 
 // Prune は before より古い波形の削除を予約する。実行は前景ジョブの合間に分割して進む。
@@ -168,6 +175,7 @@ func (w *Writer) exec(j job) {
 type pruneTask struct {
 	before   int64
 	deleted  int64
+	rawPhase bool
 	sweeping bool
 	lastFree int64
 }
@@ -175,13 +183,21 @@ type pruneTask struct {
 // stepPrune は1バッチ進めて、終わったかを返す。
 func (w *Writer) stepPrune(p *pruneTask) bool {
 	if !p.sweeping {
-		n, err := w.st.DeleteChunksBefore(p.before, pruneBatchRows)
+		del := w.st.DeleteChunksBefore
+		if p.rawPhase {
+			del = w.st.DeleteRawChunksBefore
+		}
+		n, err := del(p.before, pruneBatchRows)
 		if err != nil {
 			log.Printf("store: prune chunks: %v", err)
 			return true
 		}
 		p.deleted += n
 		if n == pruneBatchRows {
+			return false
+		}
+		if !p.rawPhase {
+			p.rawPhase = true
 			return false
 		}
 		if p.deleted == 0 {

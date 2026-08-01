@@ -73,11 +73,47 @@ func (s *Store) appendChunk(t0 int64, n int, data []byte) error {
 	return nil
 }
 
+// AppendRawChunk は x,y,z を interleave した int16 LE として書く。
+func (s *Store) AppendRawChunk(t0 int64, x, y, z []int16) error {
+	return s.appendRawChunk(t0, len(x), encodeRawChunk(x, y, z))
+}
+
+func encodeRawChunk(x, y, z []int16) []byte {
+	buf := make([]byte, len(x)*3*2)
+	for i := range x {
+		binary.LittleEndian.PutUint16(buf[(i*3+0)*2:], uint16(x[i]))
+		binary.LittleEndian.PutUint16(buf[(i*3+1)*2:], uint16(y[i]))
+		binary.LittleEndian.PutUint16(buf[(i*3+2)*2:], uint16(z[i]))
+	}
+	return buf
+}
+
+func (s *Store) appendRawChunk(t0 int64, n int, data []byte) error {
+	res, err := s.w.Exec(`INSERT OR IGNORE INTO raw_chunks(t0, n, data) VALUES(?,?,?)`, t0, n, data)
+	if err != nil {
+		return err
+	}
+	if aff, err := res.RowsAffected(); err == nil && aff == 0 {
+		log.Printf("store: raw chunk t0=%d collided with an existing row, dropped %d samples", t0, n)
+	}
+	return nil
+}
+
 // DeleteChunksBefore は before より古い波形を最大 limit 行消して、消した数を返す。
 // events は残す。1回の DELETE を短く保って記録中の追記を待たせない。
 func (s *Store) DeleteChunksBefore(before int64, limit int) (int64, error) {
 	res, err := s.w.Exec(`DELETE FROM chunks WHERE t0 IN (
   SELECT t0 FROM chunks WHERE t0 < ? ORDER BY t0 LIMIT ?)`, before, limit)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteRawChunksBefore は before より古い生波形を最大 limit 行消して、消した数を返す。
+func (s *Store) DeleteRawChunksBefore(before int64, limit int) (int64, error) {
+	res, err := s.w.Exec(`DELETE FROM raw_chunks WHERE t0 IN (
+  SELECT t0 FROM raw_chunks WHERE t0 < ? ORDER BY t0 LIMIT ?)`, before, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -233,6 +269,64 @@ func (s *Store) eachChunk(from, to int64, fn func(t0 int64, n int, data []byte) 
 		}
 	}
 	return rows.Err()
+}
+
+// RawSegment は連続した生カウント列。
+type RawSegment struct {
+	T0 int64   `json:"t0"`
+	Dt int64   `json:"dt"`
+	N  int     `json:"n"`
+	X  []int16 `json:"x"`
+	Y  []int16 `json:"y"`
+	Z  []int16 `json:"z"`
+}
+
+// RawRange は [from,to) の生カウントを返す。間引きはしない。
+func (s *Store) RawRange(from, to int64) ([]RawSegment, error) {
+	if from < 0 || to < from || to-from > MaxRangeSpanMs {
+		return nil, fmt.Errorf("%w: from=%d to=%d (from >= 0, span <= %d ms)", ErrBadRange, from, to, int64(MaxRangeSpanMs))
+	}
+	out := []RawSegment{}
+	cur := -1
+	var curEnd int64
+	rows, err := s.r.Query(`SELECT t0, n, data FROM raw_chunks WHERE t0 >= ? AND t0 < ? ORDER BY t0`,
+		from-maxChunkSpanMs, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t0 int64
+		var n int
+		var data []byte
+		if err := rows.Scan(&t0, &n, &data); err != nil {
+			return nil, err
+		}
+		if len(data) < n*3*2 {
+			return nil, fmt.Errorf("store: raw chunk too short at t0=%d", t0)
+		}
+		for i := range n {
+			t := t0 + int64(i)*SampleDtMs
+			if t < from || t >= to {
+				continue
+			}
+			if cur < 0 || t-curEnd > GapToleranceMs || curEnd-t > GapToleranceMs {
+				out = append(out, RawSegment{T0: t, Dt: SampleDtMs})
+				cur = len(out) - 1
+			}
+			o := i * 6
+			seg := &out[cur]
+			seg.X = append(seg.X, int16(binary.LittleEndian.Uint16(data[o:])))
+			seg.Y = append(seg.Y, int16(binary.LittleEndian.Uint16(data[o+2:])))
+			seg.Z = append(seg.Z, int16(binary.LittleEndian.Uint16(data[o+4:])))
+			seg.N++
+			curEnd = t + SampleDtMs
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func sampleAt(data []byte, i int) (x, y, z float32) {

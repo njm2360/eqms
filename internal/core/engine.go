@@ -50,6 +50,7 @@ var ErrNotRunning = errors.New("core: engine is not running")
 type sample struct {
 	t          int64 // ms epoch
 	x, y, z, c float32
+	rx, ry, rz int16
 }
 
 // Engine の状態を触るのは Run ゴルーチンだけ。外部からの読み取りは snap 経由で、
@@ -80,6 +81,10 @@ type Engine struct {
 	parseErrs uint64
 	intensity *float64
 	stable    bool
+
+	// 直前の XSRAW。ファームは対になる XSACC の直前に出すが、USB CDC の
+	// 送信タイムアウトで行が落ちうる。その場合は前サンプルの値が重複して入り、次のペアで自己回復する
+	raw nmea.Raw
 
 	lastSampleT int64 // SampleClock 上の時刻。イベントの時刻もこれに揃える
 	// 途絶判定用。壁時計の飛びを拾わないよう time.Since で測る
@@ -246,6 +251,8 @@ func (e *Engine) handle(ev source.Event) {
 			return
 		}
 		switch s := parsed.(type) {
+		case nmea.Raw:
+			e.raw = s
 		case nmea.Acc:
 			e.handleAcc(s, v.Recv)
 		case nmea.Intensity:
@@ -291,7 +298,8 @@ func (e *Engine) flushBatch() {
 func (e *Engine) handleAcc(a nmea.Acc, recv time.Time) {
 	t := e.clock.Stamp(recv)
 	comp := math.Sqrt(a.X*a.X + a.Y*a.Y + a.Z*a.Z)
-	s := sample{t: t, x: float32(a.X), y: float32(a.Y), z: float32(a.Z), c: float32(comp)}
+	s := sample{t: t, x: float32(a.X), y: float32(a.Y), z: float32(a.Z), c: float32(comp),
+		rx: e.raw.X, ry: e.raw.Y, rz: e.raw.Z}
 	e.lastSampleT = t
 	e.lastSampleAt = time.Now()
 

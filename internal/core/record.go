@@ -16,6 +16,7 @@ type recorder struct {
 	belowSince  int64 // 0 = 直近は閾値以上
 	chunkT0     int64
 	cx, cy, cz  []float32
+	rx, ry, rz  []int16
 }
 
 func (e *Engine) handleIntensity(in nmea.Intensity) {
@@ -132,6 +133,9 @@ func (e *Engine) recAppend(s sample) {
 	r.cx = append(r.cx, s.x)
 	r.cy = append(r.cy, s.y)
 	r.cz = append(r.cz, s.z)
+	r.rx = append(r.rx, s.rx)
+	r.ry = append(r.ry, s.ry)
+	r.rz = append(r.rz, s.rz)
 	// 丸めてから持つ。DB と status で桁が食い違わないようにする
 	if v := round2(float64(s.c)); v > r.maxPga {
 		r.maxPga = v
@@ -147,10 +151,12 @@ func (e *Engine) flushChunk() {
 		return
 	}
 	e.w.AppendChunk(r.chunkT0, r.cx, r.cy, r.cz)
+	e.w.AppendRawChunk(r.chunkT0, r.rx, r.ry, r.rz)
 	// 渡した時点で書いたものとして扱う。ここで巻き戻すと同じ区間を二重に書きにいく
 	e.persistCursor = r.chunkT0 + int64(len(r.cx))*store.SampleDtMs
 	e.w.UpdateEventProgress(r.id, r.maxInt, r.maxPga)
 	r.cx, r.cy, r.cz = r.cx[:0], r.cy[:0], r.cz[:0]
+	r.rx, r.ry, r.rz = r.rx[:0], r.ry[:0], r.rz[:0]
 }
 
 func (e *Engine) finishEvent(endT int64) {

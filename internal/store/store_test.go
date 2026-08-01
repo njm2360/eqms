@@ -270,6 +270,51 @@ func TestAppendChunkIdempotent(t *testing.T) {
 	}
 }
 
+func TestRawChunkRoundTrip(t *testing.T) {
+	s := open(t)
+	n := 100
+	x := make([]int16, n)
+	y := make([]int16, n)
+	z := make([]int16, n)
+	for i := range n {
+		x[i] = int16(i)
+		y[i] = int16(-i)
+		z[i] = 0
+	}
+	if err := s.AppendRawChunk(1000, x, y, z); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendRawChunk(1000, x, y, z); err != nil {
+		t.Fatal(err)
+	}
+
+	segs, err := s.RawRange(1000, 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(segs) != 1 || segs[0].N != 100 {
+		t.Fatalf("written twice or split: %+v", segs)
+	}
+	seg := segs[0]
+	if seg.T0 != 1000 || seg.Dt != SampleDtMs {
+		t.Fatalf("bad segment: t0=%d dt=%d", seg.T0, seg.Dt)
+	}
+	if seg.X[99] != 99 || seg.Y[99] != -99 {
+		t.Fatalf("values do not match: %v %v", seg.X[99], seg.Y[99])
+	}
+
+	if _, err := s.DeleteRawChunksBefore(5000, pruneBatchRows); err != nil {
+		t.Fatal(err)
+	}
+	segs, err = s.RawRange(1000, 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(segs) != 0 {
+		t.Fatal("raw waveform past the retention period is still there")
+	}
+}
+
 func TestPruneKeepsEvents(t *testing.T) {
 	s := open(t)
 	ramp(t, s, 1000, 100, 0)
