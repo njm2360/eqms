@@ -78,23 +78,27 @@ func (e *Engine) Health() HealthMsg {
 // Subscribe は購読登録とスナップショット作成を Run ゴルーチンへ渡す。サンプルの取り込みと
 // 同じゴルーチンで順に走るので、init と waveform が同じサンプルを二重に運ばない。
 func (e *Engine) Subscribe() (ch chan []byte, init []byte, cancel func(), err error) {
+	var st StatusMsg
+	var samples []sample
 	if err := e.call(func() {
 		e.flushBatch()
 		ch = e.hub.Subscribe()
-		msg := InitMsg{Status: e.buildStatus(), Waves: []WaveMsg{}}
-		for _, s := range e.ringSince(nowMs() - initWaveMs) {
-			if n := len(msg.Waves); n > 0 {
-				if w := &msg.Waves[n-1]; contiguous(w.T0, len(w.X), s.t) {
-					w.X, w.Y, w.Z = append(w.X, s.x), append(w.Y, s.y), append(w.Z, s.z)
-					continue
-				}
-			}
-			msg.Waves = append(msg.Waves, WaveMsg{T0: s.t, Dt: store.SampleDtMs,
-				X: []float32{s.x}, Y: []float32{s.y}, Z: []float32{s.z}})
-		}
-		init, _ = Frame("init", msg)
+		st = e.buildStatus()
+		samples = e.ringSince(nowMs() - initWaveMs)
 	}); err != nil {
 		return nil, nil, nil, err
 	}
+	msg := InitMsg{Status: st, Waves: []WaveMsg{}}
+	for _, s := range samples {
+		if n := len(msg.Waves); n > 0 {
+			if w := &msg.Waves[n-1]; contiguous(w.T0, len(w.X), s.t) {
+				w.X, w.Y, w.Z = append(w.X, s.x), append(w.Y, s.y), append(w.Z, s.z)
+				continue
+			}
+		}
+		msg.Waves = append(msg.Waves, WaveMsg{T0: s.t, Dt: store.SampleDtMs,
+			X: []float32{s.x}, Y: []float32{s.y}, Z: []float32{s.z}})
+	}
+	init, _ = Frame("init", msg)
 	return ch, init, func() { e.hub.Unsubscribe(ch) }, nil
 }

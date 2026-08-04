@@ -348,13 +348,18 @@ func (e *Engine) tick() {
 }
 
 func (e *Engine) ringSince(t0 int64) []sample {
-	out := []sample{}
-	start := (e.ringPos - e.ringN + ringCapacity) % ringCapacity
-	for i := 0; i < e.ringN; i++ {
-		s := e.ring[(start+i)%ringCapacity]
-		if s.t >= t0 {
-			out = append(out, s)
+	n := 0
+	for n < e.ringN {
+		s := e.ring[(e.ringPos-1-n+2*ringCapacity)%ringCapacity]
+		if s.t < t0 {
+			break
 		}
+		n++
+	}
+	out := make([]sample, n)
+	start := (e.ringPos - n + ringCapacity) % ringCapacity
+	for i := range n {
+		out[i] = e.ring[(start+i)%ringCapacity]
 	}
 	return out
 }
