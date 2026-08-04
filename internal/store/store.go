@@ -1,5 +1,3 @@
-// Package store は SQLite 永続化。chunks / raw_chunks は地震記録中だけ書かれる
-// 波形アーカイブで、events はその範囲を指す注釈。記録していない間の波形は残らない。
 package store
 
 import (
@@ -18,8 +16,8 @@ const (
 	// 範囲検索の下限をこれだけ広げて、from をまたぐチャンクを取りこぼさない
 	maxChunkSpanMs = 2000
 	maxRangePoints = 20000
-	// 1リクエストで走査を許す時間幅
-	MaxRangeSpanMs = 90 * 24 * 3600 * 1000
+	// 1リクエストで走査を許す時間幅。EQMS_MAX_EVENTより大きくすること
+	MaxRangeSpanMs = 12 * 3600 * 1000
 
 	MaxListLimit     = 200
 	DefaultListLimit = 50
