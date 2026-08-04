@@ -1,4 +1,3 @@
-// Package web は HTTP API と SSE、埋め込み SPA の配信。
 package web
 
 import (
@@ -13,7 +12,7 @@ import (
 	"github.com/njm2360/eqms/internal/store"
 )
 
-// DefaultStreamWrite は SSE の1回の書き込みに許す時間。これを超えた購読者は切り離す。
+// SSEの1回の書き込み許容時間。これを超えた購読者は切断する。
 const DefaultStreamWrite = 10 * time.Second
 
 type Config struct {
@@ -217,6 +216,7 @@ func (s *Server) handleWaveform(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// 切断で中断した走査はエラーにしない
 	if r.Context().Err() != nil {
 		return
 	}
@@ -227,7 +227,6 @@ func (s *Server) handleWaveform(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, wf)
 }
 
-// intParam は空なら def を返す。数値でなければ ok=false。
 func intParam(q url.Values, name string, def int64) (int64, bool) {
 	v := q.Get(name)
 	if v == "" {

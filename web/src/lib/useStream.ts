@@ -3,6 +3,23 @@ import type { IntMsg, Sample, Status, WaveMsg } from "./types"
 
 const WINDOW_MS = 30_000
 
+function decodeWave(b64: string): WaveMsg | null {
+  const raw = atob(b64)
+  const buf = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i)
+  if (buf.length < 16) return null
+  const dv = new DataView(buf.buffer)
+  const n = dv.getInt32(12, true)
+  if (buf.length !== 16 + 12 * n) return null
+  return {
+    t0: Number(dv.getBigInt64(0, true)),
+    dt: dv.getInt32(8, true),
+    x: new Float32Array(buf.buffer, 16, n),
+    y: new Float32Array(buf.buffer, 16 + 4 * n, n),
+    z: new Float32Array(buf.buffer, 16 + 8 * n, n),
+  }
+}
+
 export interface Stream {
   status: Status | null
   intensity: IntMsg | null
@@ -22,7 +39,8 @@ export function useStream(): Stream {
   useEffect(() => {
     const es = new EventSource("/api/stream")
 
-    const appendWave = (w: WaveMsg) => {
+    const appendWave = (w: WaveMsg | null) => {
+      if (!w) return
       const buf = waveRef.current
       for (let i = 0; i < w.x.length; i++) {
         buf.push({ t: w.t0 + i * w.dt, x: w.x[i], y: w.y[i], z: w.z[i] })
@@ -34,15 +52,15 @@ export function useStream(): Stream {
     }
 
     es.addEventListener("init", (e) => {
-      const msg = JSON.parse(e.data) as { status: Status; waves: WaveMsg[] }
+      const msg = JSON.parse(e.data) as { status: Status; waves: string[] }
       setStatus(msg.status)
       waveRef.current = []
-      msg.waves.forEach(appendWave)
+      msg.waves.forEach((w) => appendWave(decodeWave(w)))
       setStreamOk(true)
     })
     es.addEventListener("status", (e) => setStatus(JSON.parse(e.data)))
     es.addEventListener("intensity", (e) => setIntensity(JSON.parse(e.data)))
-    es.addEventListener("waveform", (e) => appendWave(JSON.parse(e.data)))
+    es.addEventListener("waveform", (e) => appendWave(decodeWave(e.data)))
     es.addEventListener("eqevent", () => setEqCount((c) => c + 1))
     es.onerror = () => setStreamOk(false) // 再接続は EventSource 任せ
     return () => es.close()

@@ -291,7 +291,7 @@ func (e *Engine) flushBatch() {
 	if len(e.batchX) == 0 {
 		return
 	}
-	e.hub.Publish("waveform", WaveMsg{T0: e.batchT0, Dt: store.SampleDtMs, X: e.batchX, Y: e.batchY, Z: e.batchZ})
+	e.hub.PublishRaw("waveform", encodeWave(WaveMsg{T0: e.batchT0, Dt: store.SampleDtMs, X: e.batchX, Y: e.batchY, Z: e.batchZ}))
 	e.batchX, e.batchY, e.batchZ = nil, nil, nil
 }
 

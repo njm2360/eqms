@@ -50,7 +50,6 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store) {
 	return srv, st
 }
 
-// newEvent は ID を払い出して events へ1件入れる。
 func newEvent(t *testing.T, st *store.Store, startedAt, triggeredAt int64) int64 {
 	t.Helper()
 	id, err := st.NextEventID()

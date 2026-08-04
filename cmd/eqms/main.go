@@ -86,7 +86,8 @@ func main() {
 		ReadTimeout:       10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    16 << 10,
-		WriteTimeout:      30 * time.Second,
+		// SSEはResponseControllerの期限で上書きするので切れない
+		WriteTimeout: 30 * time.Second,
 	}
 	go func() {
 		<-ctx.Done()

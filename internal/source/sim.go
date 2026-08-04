@@ -35,7 +35,7 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 			el := now.Sub(start).Seconds()
 			phase := math.Mod(el, quakePeriod)
 
-			// ノイズ床は震度換算で表示しきい値 (-0.5) を十分下回る振幅に保つ
+			// ノイズフロアは震度換算で表示しきい値 (-0.5) を十分下回る振幅に保つ
 			x := rand.NormFloat64() * 0.02
 			y := rand.NormFloat64() * 0.02
 			z := rand.NormFloat64() * 0.02

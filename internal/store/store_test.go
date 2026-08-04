@@ -20,7 +20,6 @@ func open(t *testing.T) *Store {
 	return s
 }
 
-// newEvent は ID を払い出して events へ1件入れる。
 func newEvent(t *testing.T, s *Store, startedAt, triggeredAt int64) int64 {
 	t.Helper()
 	id, err := s.NextEventID()

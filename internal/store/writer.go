@@ -8,7 +8,7 @@ import (
 const (
 	writeQueueLen = 2048 // 記録中は毎秒3件。ディスクが十数分止まっても取りこぼさない深さ
 
-	// 保守作業を1ステップで進める量。前景ジョブへ戻る間隔になる
+	// 保守作業を1ステップで進める量。書き込みジョブへ戻る間隔になる
 	pruneBatchRows = 2000
 	vacuumPages    = 256
 )
@@ -94,7 +94,7 @@ func (w *Writer) AppendRawChunk(t0 int64, x, y, z []int16) {
 	w.submit("append raw chunk", func(s *Store) error { return s.appendRawChunk(t0, n, data) })
 }
 
-// Prune は before より古い波形の削除を予約する。実行は前景ジョブの合間に分割して進む。
+// Prune は before より古い波形の削除を予約する。実行は書き込みジョブの合間に分割して進む。
 func (w *Writer) Prune(before int64) {
 	select {
 	case <-w.maint: // 未着手の予約は新しい期限で置き換える
@@ -123,7 +123,7 @@ func (w *Writer) run() {
 	defer close(w.done)
 	var task *pruneTask
 	for {
-		select { // 前景優先。保守作業に記録の書き込みを待たせない
+		select { // 保守作業に記録の書き込みを待たせない
 		case j := <-w.jobs:
 			w.exec(j)
 			continue

@@ -1,6 +1,9 @@
 package core
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+	"math"
 	"time"
 
 	"github.com/njm2360/eqms/internal/store"
@@ -38,8 +41,29 @@ type StatusMsg struct {
 
 type InitMsg struct {
 	Status StatusMsg `json:"status"`
-	// waveform フレームと同じ形式。切断や時刻の飛びで分かれる
-	Waves []WaveMsg `json:"waves"`
+	// waveform フレームと同じ base64 バイナリ。切断や時刻の飛びで分かれる
+	Waves []string `json:"waves"`
+}
+
+// 形式 (LE): t0 int64, dt int32, n int32, x float32×n, y float32×n, z float32×n
+func encodeWave(w WaveMsg) []byte {
+	n := len(w.X)
+	buf := make([]byte, 16+12*n)
+	binary.LittleEndian.PutUint64(buf[0:], uint64(w.T0))
+	binary.LittleEndian.PutUint32(buf[8:], uint32(w.Dt))
+	binary.LittleEndian.PutUint32(buf[12:], uint32(n))
+	for i, v := range w.X {
+		binary.LittleEndian.PutUint32(buf[16+4*i:], math.Float32bits(v))
+	}
+	for i, v := range w.Y {
+		binary.LittleEndian.PutUint32(buf[16+4*(n+i):], math.Float32bits(v))
+	}
+	for i, v := range w.Z {
+		binary.LittleEndian.PutUint32(buf[16+4*(2*n+i):], math.Float32bits(v))
+	}
+	out := make([]byte, base64.StdEncoding.EncodedLen(len(buf)))
+	base64.StdEncoding.Encode(out, buf)
+	return out
 }
 
 type EqMsg struct {
@@ -88,16 +112,20 @@ func (e *Engine) Subscribe() (ch chan []byte, init []byte, cancel func(), err er
 	}); err != nil {
 		return nil, nil, nil, err
 	}
-	msg := InitMsg{Status: st, Waves: []WaveMsg{}}
+	var waves []WaveMsg
 	for _, s := range samples {
-		if n := len(msg.Waves); n > 0 {
-			if w := &msg.Waves[n-1]; contiguous(w.T0, len(w.X), s.t) {
+		if n := len(waves); n > 0 {
+			if w := &waves[n-1]; contiguous(w.T0, len(w.X), s.t) {
 				w.X, w.Y, w.Z = append(w.X, s.x), append(w.Y, s.y), append(w.Z, s.z)
 				continue
 			}
 		}
-		msg.Waves = append(msg.Waves, WaveMsg{T0: s.t, Dt: store.SampleDtMs,
+		waves = append(waves, WaveMsg{T0: s.t, Dt: store.SampleDtMs,
 			X: []float32{s.x}, Y: []float32{s.y}, Z: []float32{s.z}})
+	}
+	msg := InitMsg{Status: st, Waves: []string{}}
+	for _, w := range waves {
+		msg.Waves = append(msg.Waves, string(encodeWave(w)))
 	}
 	init, _ = Frame("init", msg)
 	return ch, init, func() { e.hub.Unsubscribe(ch) }, nil

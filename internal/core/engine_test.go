@@ -2,8 +2,11 @@ package core
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -141,7 +144,6 @@ func (h *harness) subscribe(t *testing.T) (chan []byte, []byte) {
 	return ch, init
 }
 
-// collectWaves は waveform フレームを溜め続ける。
 func (h *harness) collectWaves(t *testing.T) func() []WaveMsg {
 	t.Helper()
 	ch, _ := h.subscribe(t)
@@ -169,11 +171,35 @@ func decodeWave(frame []byte) (WaveMsg, bool) {
 	if !ok || name != "waveform" {
 		return WaveMsg{}, false
 	}
-	var w WaveMsg
-	if json.Unmarshal(data, &w) != nil {
+	return decodeWaveData(data)
+}
+
+func decodeWaveData(data []byte) (WaveMsg, bool) {
+	raw, err := base64.StdEncoding.DecodeString(string(data))
+	if err != nil || len(raw) < 16 {
 		return WaveMsg{}, false
 	}
+	n := int(binary.LittleEndian.Uint32(raw[12:]))
+	if len(raw) != 16+12*n {
+		return WaveMsg{}, false
+	}
+	w := WaveMsg{T0: int64(binary.LittleEndian.Uint64(raw)), Dt: int(binary.LittleEndian.Uint32(raw[8:]))}
+	at := func(i int) float32 { return math.Float32frombits(binary.LittleEndian.Uint32(raw[16+4*i:])) }
+	for i := range n {
+		w.X = append(w.X, at(i))
+		w.Y = append(w.Y, at(n+i))
+		w.Z = append(w.Z, at(2*n+i))
+	}
 	return w, true
+}
+
+func waveFromB64(t *testing.T, s string) WaveMsg {
+	t.Helper()
+	w, ok := decodeWaveData([]byte(s))
+	if !ok {
+		t.Fatalf("cannot decode wave: %q", s)
+	}
+	return w
 }
 
 func splitFrame(frame []byte) (event string, data []byte, ok bool) {
@@ -440,7 +466,7 @@ func TestSubscribeDoesNotDuplicateInitSamples(t *testing.T) {
 		}
 		var initEnd int64
 		if waves := decodeInit(t, init).Waves; len(waves) > 0 {
-			last := waves[len(waves)-1]
+			last := waveFromB64(t, waves[len(waves)-1])
 			initEnd = last.T0 + int64(len(last.X))*int64(last.Dt)
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -579,7 +605,7 @@ func TestInitWavesSplitOnGap(t *testing.T) {
 	}
 	var lastT int64
 	h.inspect(t, func(e *Engine) { lastT = e.lastSampleT })
-	last := msg.Waves[len(msg.Waves)-1]
+	last := waveFromB64(t, msg.Waves[len(msg.Waves)-1])
 	if end := last.T0 + int64(len(last.X)-1)*int64(last.Dt); end != lastT {
 		t.Fatalf("reconstructed end is off by %dms", lastT-end)
 	}

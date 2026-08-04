@@ -8,9 +8,9 @@ export interface Sample {
 export interface WaveMsg {
   t0: number
   dt: number
-  x: number[]
-  y: number[]
-  z: number[]
+  x: Float32Array
+  y: Float32Array
+  z: Float32Array
 }
 
 export interface IntMsg {
