@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"math"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestRangeRaw(t *testing.T) {
 	s := open(t)
 	ramp(t, s, 1000, 100, 0)
 
-	got, err := s.Range(1000, 2000, 1000)
+	got, err := s.Range(t.Context(), 1000, 2000, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestRangeGapSplitsSegments(t *testing.T) {
 	ramp(t, s, 1000, 100, 0)   // 1000-2000ms
 	ramp(t, s, 5000, 100, 100) // 3秒の欠落を挟む
 
-	got, err := s.Range(1000, 6000, 100000)
+	got, err := s.Range(t.Context(), 1000, 6000, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +97,7 @@ func TestRangeContiguousChunksMerge(t *testing.T) {
 	ramp(t, s, 1000, 100, 0)
 	ramp(t, s, 2000, 100, 100)
 
-	got, err := s.Range(1000, 3000, 100000)
+	got, err := s.Range(t.Context(), 1000, 3000, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestRangeDecimatedKeepsPeaks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := s.Range(1000, 2000, 10) // 100サンプル → 10バケット
+	got, err := s.Range(t.Context(), 1000, 2000, 10) // 100サンプル → 10バケット
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +145,7 @@ func TestRangeDecimatedKeepsPeaks(t *testing.T) {
 func TestRangeEmpty(t *testing.T) {
 	s := open(t)
 	for _, tc := range [][2]int64{{0, 0}, {50000, 60000}} {
-		got, err := s.Range(tc[0], tc[1], 1000)
+		got, err := s.Range(t.Context(), tc[0], tc[1], 1000)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,14 +169,30 @@ func TestRangeRejectsBadInput(t *testing.T) {
 		{"over the span limit", 0, MaxRangeSpanMs + 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := s.Range(tc.from, tc.to, 20000)
+			got, err := s.Range(t.Context(), tc.from, tc.to, 20000)
 			if !errors.Is(err, ErrBadRange) {
 				t.Fatalf("err=%v got=%v, want ErrBadRange", err, got)
 			}
 		})
 	}
-	if _, err := s.Range(0, MaxRangeSpanMs, 2000); err != nil {
+	if _, err := s.Range(t.Context(), 0, MaxRangeSpanMs, 2000); err != nil {
 		t.Fatalf("exactly the span limit must pass: %v", err)
+	}
+}
+
+// 切断済みクライアントのためにスキャンを続けないこと。
+func TestRangeStopsOnCanceledContext(t *testing.T) {
+	s := open(t)
+	for i := range 10 {
+		ramp(t, s, 1000+int64(i)*1000, 100, float32(i*100))
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if got, err := s.Range(ctx, 1000, 11000, 100000); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err=%v got=%v, want context.Canceled", err, got)
+	}
+	if got, err := s.RawRange(ctx, 1000, 11000); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err=%v got=%v, want context.Canceled", err, got)
 	}
 }
 
@@ -226,7 +243,7 @@ func TestReadDoesNotBlockWrite(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if _, err := s.Range(0, 20000*1000, 20000); err != nil {
+		if _, err := s.Range(t.Context(), 0, 20000*1000, 20000); err != nil {
 			t.Error(err)
 		}
 	}()
@@ -261,7 +278,7 @@ func TestAppendChunkIdempotent(t *testing.T) {
 	s := open(t)
 	ramp(t, s, 1000, 100, 0)
 	ramp(t, s, 1000, 100, 0)
-	got, err := s.Range(1000, 2000, 100000)
+	got, err := s.Range(t.Context(), 1000, 2000, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +305,7 @@ func TestRawChunkRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	segs, err := s.RawRange(1000, 2000)
+	segs, err := s.RawRange(t.Context(), 1000, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +323,7 @@ func TestRawChunkRoundTrip(t *testing.T) {
 	if _, err := s.DeleteRawChunksBefore(5000, pruneBatchRows); err != nil {
 		t.Fatal(err)
 	}
-	segs, err = s.RawRange(1000, 2000)
+	segs, err = s.RawRange(t.Context(), 1000, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +352,7 @@ func TestPruneKeepsEvents(t *testing.T) {
 	if err != nil || ev == nil {
 		t.Fatalf("the event was deleted: %v %v", ev, err)
 	}
-	got, err := s.Range(1000, 2000, 1000)
+	got, err := s.Range(t.Context(), 1000, 2000, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +429,7 @@ func TestRangeSplitsOverlappingChunks(t *testing.T) {
 	ramp(t, s, 1000, 100, 0)
 	ramp(t, s, 1500, 100, 1000) // 巻き戻って500ms重なる
 
-	wf, err := s.Range(0, 4000, maxRangePoints)
+	wf, err := s.Range(t.Context(), 0, 4000, maxRangePoints)
 	if err != nil {
 		t.Fatal(err)
 	}

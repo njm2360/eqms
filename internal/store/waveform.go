@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/binary"
 	"fmt"
@@ -133,7 +134,7 @@ func (s *Store) VacuumStep(pages int) (int64, error) {
 
 // Range は [from,to) の波形を返す。points を超える場合は min/max で間引く。
 // 範囲が不正か MaxRangeSpanMs を超える場合は ErrBadRange。
-func (s *Store) Range(from, to int64, points int) (*WaveformRange, error) {
+func (s *Store) Range(ctx context.Context, from, to int64, points int) (*WaveformRange, error) {
 	// from>=0 を先に弾いておかないと to-from が int64 を溢れて桁が壊れる
 	if from < 0 || to < from || to-from > MaxRangeSpanMs {
 		return nil, fmt.Errorf("%w: from=%d to=%d (from >= 0, span <= %d ms)", ErrBadRange, from, to, int64(MaxRangeSpanMs))
@@ -148,20 +149,20 @@ func (s *Store) Range(from, to int64, points int) (*WaveformRange, error) {
 		points = maxRangePoints
 	}
 	if (to-from)/SampleDtMs <= int64(points) {
-		return s.rangeRaw(from, to)
+		return s.rangeRaw(ctx, from, to)
 	}
 	bucket := (to - from) / int64(points)
 	if bucket < SampleDtMs {
 		bucket = SampleDtMs
 	}
-	return s.rangeDecimated(from, to, bucket)
+	return s.rangeDecimated(ctx, from, to, bucket)
 }
 
-func (s *Store) rangeRaw(from, to int64) (*WaveformRange, error) {
+func (s *Store) rangeRaw(ctx context.Context, from, to int64) (*WaveformRange, error) {
 	out := &WaveformRange{From: from, To: to, Segments: []Segment{}}
 	cur := -1
 	var curEnd int64
-	err := s.eachChunk(from, to, func(t0 int64, n int, data []byte) error {
+	err := s.eachChunk(ctx, from, to, func(t0 int64, n int, data []byte) error {
 		for i := range n {
 			t := t0 + int64(i)*SampleDtMs
 			if t < from || t >= to {
@@ -189,14 +190,14 @@ func (s *Store) rangeRaw(from, to int64) (*WaveformRange, error) {
 	return out, nil
 }
 
-func (s *Store) rangeDecimated(from, to, bucket int64) (*WaveformRange, error) {
+func (s *Store) rangeDecimated(ctx context.Context, from, to, bucket int64) (*WaveformRange, error) {
 	nb := int((to - from + bucket - 1) / bucket)
 	type acc struct {
 		xmin, xmax, ymin, ymax, zmin, zmax float32
 		ok                                 bool
 	}
 	buckets := make([]acc, nb)
-	err := s.eachChunk(from, to, func(t0 int64, n int, data []byte) error {
+	err := s.eachChunk(ctx, from, to, func(t0 int64, n int, data []byte) error {
 		for i := range n {
 			t := t0 + int64(i)*SampleDtMs
 			if t < from || t >= to {
@@ -247,14 +248,17 @@ func (s *Store) rangeDecimated(from, to, bucket int64) (*WaveformRange, error) {
 	return out, nil
 }
 
-func (s *Store) eachChunk(from, to int64, fn func(t0 int64, n int, data []byte) error) error {
-	rows, err := s.r.Query(`SELECT t0, n, data FROM chunks WHERE t0 >= ? AND t0 < ? ORDER BY t0`,
+func (s *Store) eachChunk(ctx context.Context, from, to int64, fn func(t0 int64, n int, data []byte) error) error {
+	rows, err := s.r.QueryContext(ctx, `SELECT t0, n, data FROM chunks WHERE t0 >= ? AND t0 < ? ORDER BY t0`,
 		from-maxChunkSpanMs, to)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		var t0 int64
 		var n int
 		var data []byte
@@ -282,20 +286,23 @@ type RawSegment struct {
 }
 
 // RawRange は [from,to) の生カウントを返す。間引きはしない。
-func (s *Store) RawRange(from, to int64) ([]RawSegment, error) {
+func (s *Store) RawRange(ctx context.Context, from, to int64) ([]RawSegment, error) {
 	if from < 0 || to < from || to-from > MaxRangeSpanMs {
 		return nil, fmt.Errorf("%w: from=%d to=%d (from >= 0, span <= %d ms)", ErrBadRange, from, to, int64(MaxRangeSpanMs))
 	}
 	out := []RawSegment{}
 	cur := -1
 	var curEnd int64
-	rows, err := s.r.Query(`SELECT t0, n, data FROM raw_chunks WHERE t0 >= ? AND t0 < ? ORDER BY t0`,
+	rows, err := s.r.QueryContext(ctx, `SELECT t0, n, data FROM raw_chunks WHERE t0 >= ? AND t0 < ? ORDER BY t0`,
 		from-maxChunkSpanMs, to)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		var t0 int64
 		var n int
 		var data []byte

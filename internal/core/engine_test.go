@@ -246,7 +246,7 @@ func TestResumeMergesNearbyTrigger(t *testing.T) {
 	assertNoOverlap(t, evs)
 
 	ev := evs[0]
-	wf, err := h.st.Range(ev.StartedAt, *ev.EndedAt, 1_000_000)
+	wf, err := h.st.Range(t.Context(), ev.StartedAt, *ev.EndedAt, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestNoDuplicateArchiveWrites(t *testing.T) {
 
 	evs := h.eventsAsc(t)
 	ev := evs[0]
-	wf, err := h.st.Range(ev.StartedAt, *ev.EndedAt, 1_000_000)
+	wf, err := h.st.Range(t.Context(), ev.StartedAt, *ev.EndedAt, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestDisconnectDoesNotHideGap(t *testing.T) {
 	}
 
 	ev := h.eventsAsc(t)[0]
-	wf, err := h.st.Range(ev.StartedAt, *ev.EndedAt, 1_000_000)
+	wf, err := h.st.Range(t.Context(), ev.StartedAt, *ev.EndedAt, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +399,7 @@ func TestClockStepBackResumesArchiving(t *testing.T) {
 	}
 
 	stepped := base.Add(-time.Hour).UnixMilli()
-	wf, err := h.st.Range(stepped-1000, stepped+5000, 1_000_000)
+	wf, err := h.st.Range(t.Context(), stepped-1000, stepped+5000, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,11 +621,11 @@ func TestRawArchivedAlongsideWaveform(t *testing.T) {
 	h.closeActive(t)
 
 	ev := h.eventsAsc(t)[0]
-	wf, err := h.st.Range(ev.StartedAt, *ev.EndedAt, 1_000_000)
+	wf, err := h.st.Range(t.Context(), ev.StartedAt, *ev.EndedAt, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
-	raws, err := h.st.RawRange(ev.StartedAt, *ev.EndedAt)
+	raws, err := h.st.RawRange(t.Context(), ev.StartedAt, *ev.EndedAt)
 	if err != nil {
 		t.Fatal(err)
 	}

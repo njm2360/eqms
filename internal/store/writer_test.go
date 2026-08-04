@@ -62,7 +62,7 @@ func TestWriterCopiesSamples(t *testing.T) {
 	}
 	w.Sync()
 
-	got, err := s.Range(1000, 2000, 100000)
+	got, err := s.Range(t.Context(), 1000, 2000, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestDeleteChunksBeforeIsBatched(t *testing.T) {
 	if n != 4 {
 		t.Fatalf("deleted=%d, want 4", n)
 	}
-	got, err := s.Range(0, 10_000, 100000)
+	got, err := s.Range(t.Context(), 0, 10_000, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}

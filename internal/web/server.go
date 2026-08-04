@@ -212,9 +212,12 @@ func (s *Server) handleWaveform(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "from, to and points must be integers", http.StatusBadRequest)
 		return
 	}
-	wf, err := s.st.Range(from, to, int(points))
+	wf, err := s.st.Range(r.Context(), from, to, int(points))
 	if errors.Is(err, store.ErrBadRange) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if r.Context().Err() != nil {
 		return
 	}
 	if err != nil {
