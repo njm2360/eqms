@@ -3,7 +3,7 @@ import { EVENTS_PAGE_SIZE, fetchEvent, fetchEvents, fetchWaveform, nextCursor, t
 import { downloadWaveformCsv } from "../lib/csv"
 import { fmtDuration, fmtTime } from "../lib/format"
 import { jmaClass } from "../lib/jma"
-import { readQuery, updateQuery } from "../lib/urlState"
+import { pushQuery, replaceQuery, useQuery } from "../lib/urlState"
 import type { EqEvent, WaveformRange } from "../lib/types"
 import { Field, IntensityBadge } from "./readout"
 import WaveformPlot, { type View } from "./WaveformPlot"
@@ -35,23 +35,33 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const serverNowRef = useRef(serverNow)
   serverNowRef.current = serverNow
+  const eventsRef = useRef(events)
+  eventsRef.current = events
 
-  const select = (e: EqEvent | null) => {
-    setSel(e)
-    updateQuery({ event: e ? String(e.id) : null })
-  }
+  const eventQ = useQuery("event")
+  const eventId = Number.isInteger(Number(eventQ)) && Number(eventQ) > 0 ? Number(eventQ) : null
+
+  const openEvent = (e: EqEvent) => pushQuery({ event: String(e.id) })
+  const closeEvent = () => pushQuery({ event: null })
 
   useEffect(() => {
-    const id = Number(readQuery("event"))
-    if (!Number.isInteger(id) || id <= 0) return
+    if (eventId === null) {
+      setSel(null)
+      return
+    }
+    const local = eventsRef.current.find((e) => e.id === eventId)
+    if (local) {
+      setSel(local)
+      return
+    }
     let alive = true
-    fetchEvent(id)
+    fetchEvent(eventId)
       .then((e) => alive && setSel(e))
-      .catch(() => alive && updateQuery({ event: null })) // 消えた記録は開かず URL からも外す
+      .catch(() => alive && replaceQuery({ event: null })) // 消えた記録は開かず URL からも外す
     return () => {
       alive = false
     }
-  }, [])
+  }, [eventId])
 
   useEffect(() => {
     let alive = true
@@ -142,7 +152,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
   useEffect(() => {
     if (!sel) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") select(null)
+      if (e.key === "Escape") closeEvent()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
@@ -197,7 +207,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
           </button>
           <button
             className="rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)]"
-            onClick={() => select(null)}
+            onClick={closeEvent}
           >
             閉じる
           </button>
@@ -256,7 +266,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
                   key={e.id}
                   className={`cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--border)]/40 ${sel?.id === e.id ? "bg-[var(--border)]/60" : ""
                     }`}
-                  onClick={() => select(e)}
+                  onClick={() => openEvent(e)}
                 >
                   <td className="px-4 py-2 tabular-nums text-[var(--text-muted)]">{e.id}</td>
                   <td className="px-4 py-2 tabular-nums">{fmtTime(e.triggeredAt)}</td>

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import HistoryView from "./components/HistoryView"
 import IntensityPanel from "./components/IntensityPanel"
 import WaveformPlot from "./components/WaveformPlot"
 import { jmaClass, MIN_DISPLAY_INTENSITY } from "./lib/jma"
-import { readQuery, updateQuery } from "./lib/urlState"
+import { pushQuery, useQuery } from "./lib/urlState"
 import { useStream } from "./lib/useStream"
 
 type Tab = "realtime" | "history"
@@ -17,7 +17,7 @@ const BASE_TITLE = "EQMS 地震計モニター"
 
 export default function App() {
   const { status, intensity, streamOk, eqCount, waveRef } = useStream()
-  const [tab, setTab] = useState<Tab>(() => (readQuery("tab") === "history" ? "history" : "realtime"))
+  const tab: Tab = useQuery("tab") === "history" ? "history" : "realtime"
 
   const raw = intensity?.intensity ?? status?.intensity ?? null
   const intensityNow = raw !== null && raw >= MIN_DISPLAY_INTENSITY ? raw : null
@@ -27,8 +27,7 @@ export default function App() {
   }, [intensityNow])
 
   const switchTab = (t: Tab) => {
-    setTab(t)
-    updateQuery(t === "realtime" ? { tab: null, event: null } : { tab: t })
+    pushQuery(t === "realtime" ? { tab: null, event: null } : { tab: t })
   }
 
   return (
