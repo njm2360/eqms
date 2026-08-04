@@ -86,7 +86,7 @@ func main() {
 		ReadTimeout:       10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    16 << 10,
-		// WriteTimeout は SSE を切ってしまうので設定しない
+		WriteTimeout:      30 * time.Second,
 	}
 	go func() {
 		<-ctx.Done()
