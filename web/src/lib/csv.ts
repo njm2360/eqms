@@ -5,7 +5,7 @@ const RAW_WINDOW_MS = 180_000
 
 // 生サンプルの CSV。全期間を一度に引くと間引かれるため、窓に分けて集める
 export async function downloadWaveformCsv(from: number, to: number, filename: string) {
-  const rows = ["t,x,y,z"]
+  const rows = ["t_ms,ns_gal,ew_gal,ud_gal"]
   for (let t = from; t < to; t += RAW_WINDOW_MS) {
     const w = await fetchWaveform(t, Math.min(t + RAW_WINDOW_MS, to), 20000)
     for (const s of w.segments) {
