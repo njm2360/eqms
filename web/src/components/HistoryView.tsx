@@ -175,8 +175,9 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
 
   const detail = sel && (
     // スマホは全画面モーダル、lg 以上は右カラムとして固定表示
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[var(--surface-0)] p-4 lg:sticky lg:inset-auto lg:top-4 lg:z-auto lg:min-w-0 lg:flex-1 lg:overflow-visible lg:rounded-lg lg:border lg:border-[var(--border)] lg:bg-[var(--surface-1)]">
-      <div className="mb-3 flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[var(--surface-0)] p-2 sm:p-4 lg:sticky lg:inset-auto lg:top-4 lg:z-auto lg:min-w-0 lg:flex-1 lg:overflow-visible lg:rounded-lg lg:border lg:border-[var(--border)] lg:bg-[var(--surface-1)]">
+      {/* ボタン群が入らない幅ではメタ情報を潰さず下の行へ落とす */}
+      <div className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
           <span className="font-medium">記録 #{sel.id}</span>
           <Field label="検知" value={fmtTime(sel.triggeredAt)} />
@@ -188,7 +189,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
             <span className="text-sm text-[var(--text-muted)]">欠落 {wave.segments.length - 1} 箇所</span>
           )}
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="ml-auto flex shrink-0 gap-2">
           {!waveGone && (
             <button
               className="rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--border)] disabled:opacity-50"

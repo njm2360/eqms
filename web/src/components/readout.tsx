@@ -14,7 +14,7 @@ export function Reading({ label, value, unit }: { label: string; value: string; 
 
 export function Field({ label, value }: { label: string; value: string }) {
   return (
-    <span>
+    <span className="whitespace-nowrap">
       <span className="text-[var(--text-muted)]">{label}</span> <span className="tabular-nums">{value}</span>
     </span>
   )

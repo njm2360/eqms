@@ -25,8 +25,8 @@ const PANE_MAX_H = 220
 const BOTTOM_GAP = 16 // 画面下端に残す余白
 const EDGE_PAD = 8 // 各段の上下端の目盛りラベルが半分はみ出さない幅
 const X_AXIS_H = 28
-const Y_AXIS_W = 52
-const Y_LABEL_W = 20 // 回転させた軸名の帯。Y_AXIS_Wとは別枠で確保される
+const Y_AXIS_W = 40 // 非表示tickの既定サイズをsize:0で除いた上で "-2000" が収まる幅
+const Y_LABEL_W = 16 // 回転させた軸名の帯。Y_AXIS_Wとは別枠で確保される
 const X_LABEL_PAD = 16 // 右端の時刻ラベルが欠けない幅
 
 // 画面の残り高さを段数で割ってプロット領域の高さを決める
@@ -159,7 +159,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
             stroke: muted,
             font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
-            ticks: { show: false },
+            ticks: { show: false, size: 0 },
             values: (_u, splits, _ai, _space, incr) =>
               isLast ? splits.map((s) => tickLabel(s, incr)) : splits.map(() => ""),
           },
@@ -171,7 +171,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
             stroke: muted,
             font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
-            ticks: { show: false },
+            ticks: { show: false, size: 0 },
             // スケール範囲外の値を返すとラベルが枠の外へ出る。全幅はピークちょうどに置く
             splits: () => {
               const p = plotDataRef.current.peak
@@ -375,22 +375,26 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4 pb-1 text-sm">
-        <span className="text-[var(--text-secondary)]">{label}</span>
-        <span className="flex items-baseline gap-x-3 tabular-nums">
-          {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
-          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)]" />
-          {AXES.map((axis, i) => (
-            <span key={axis} className="whitespace-nowrap">
-              <span className="text-[var(--text-muted)]">{axis}</span>{" "}
-              <span
-                className="inline-block w-[7ch] text-right"
-                ref={(el) => {
-                  valueRefs.current[i] = el
-                }}
-              />
-            </span>
-          ))}
+      {/* 読み値が入らない幅ではラベルを潰さず次の行へ落とす */}
+      <div className="flex flex-wrap items-baseline gap-x-4 pb-1 text-sm">
+        <span className="whitespace-nowrap text-[var(--text-secondary)]">{label}</span>
+        {/* 3軸は一体のまま、狭い幅では時刻とのあいだで折る */}
+        <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-3 tabular-nums">
+          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)] empty:hidden" />
+          <span className="flex items-baseline gap-x-3">
+            {AXES.map((axis, i) => (
+              <span key={axis} className="whitespace-nowrap">
+                <span className="text-[var(--text-muted)]">{axis}</span>{" "}
+                {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
+                <span
+                  className="inline-block w-[7ch] text-right"
+                  ref={(el) => {
+                    valueRefs.current[i] = el
+                  }}
+                />
+              </span>
+            ))}
+          </span>
         </span>
       </div>
       <div ref={hostRef} className="wave-host" />

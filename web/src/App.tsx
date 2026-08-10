@@ -31,7 +31,7 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[90rem] flex-col px-4">
+    <div className="mx-auto flex min-h-screen max-w-[90rem] flex-col px-2 sm:px-4">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--border)] py-3">
         <span className="font-semibold tracking-tight">EQMS</span>
         {/* 正常時は何も出さない。初回ロード中 (status 未着) も未判定なので出さない */}
