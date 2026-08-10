@@ -225,7 +225,6 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
           view && (
             <WaveformPlot
               key={sel.id} // 記録を切り替えたら前の波形を持ち越さない
-              label="加速度"
               range={wave ?? undefined}
               view={view}
               bounds={bounds}

@@ -9,7 +9,6 @@ export interface View {
 }
 
 interface Props {
-  label: string
   live?: React.RefObject<Sample[]> // 指定時は最新 spanMs を追従表示する
   spanMs?: number
   range?: WaveformRange
@@ -64,7 +63,7 @@ function clockLabel(sec: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`
 }
 
-export default function WaveformPlot({ label, live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
+export default function WaveformPlot({ live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
   const interactive = bounds !== undefined
   const syncKey = useId()
   const hostRef = useRef<HTMLDivElement>(null)
@@ -375,26 +374,22 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
 
   return (
     <div>
-      {/* 読み値が入らない幅ではラベルを潰さず次の行へ落とす */}
-      <div className="flex flex-wrap items-baseline gap-x-4 pb-1 text-sm">
-        <span className="whitespace-nowrap text-[var(--text-secondary)]">{label}</span>
-        {/* 3軸は一体のまま、狭い幅では時刻とのあいだで折る */}
-        <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-3 tabular-nums">
-          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)] empty:hidden" />
-          <span className="flex items-baseline gap-x-3">
-            {AXES.map((axis, i) => (
-              <span key={axis} className="whitespace-nowrap">
-                <span className="text-[var(--text-muted)]">{axis}</span>{" "}
-                {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
-                <span
-                  className="inline-block w-[7ch] text-right"
-                  ref={(el) => {
-                    valueRefs.current[i] = el
-                  }}
-                />
-              </span>
-            ))}
-          </span>
+      {/* 3軸は一体のまま、狭い幅では時刻とのあいだで折る */}
+      <div className="flex flex-wrap items-baseline justify-end gap-x-3 pb-1 text-sm tabular-nums">
+        <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)] empty:hidden" />
+        <span className="flex items-baseline gap-x-3">
+          {AXES.map((axis, i) => (
+            <span key={axis} className="whitespace-nowrap">
+              <span className="text-[var(--text-muted)]">{axis}</span>{" "}
+              {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
+              <span
+                className="inline-block w-[7ch] text-right"
+                ref={(el) => {
+                  valueRefs.current[i] = el
+                }}
+              />
+            </span>
+          ))}
         </span>
       </div>
       <div ref={hostRef} className="wave-host" />
