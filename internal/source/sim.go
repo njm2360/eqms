@@ -48,8 +48,8 @@ func RunSim(ctx context.Context, ch chan<- Event) {
 			comp := math.Sqrt(x*x + y*y + z*z)
 			envelope = math.Max(comp, envelope*0.995)
 
-			// ファームは (オフセット - 生カウント) × 感度 = 加速度で出力する
-			raw := func(g float64) int16 { return int16(math.Round(-g / stepGal)) }
+			// ファームは (生カウント - オフセット) × 感度 = 加速度で出力する
+			raw := func(g float64) int16 { return int16(math.Round(g / stepGal)) }
 			if !send(ctx, ch, Line{Text: nmea.Format(fmt.Sprintf("XSRAW,%d,%d,%d", raw(x), raw(y), raw(z))), Recv: now}) {
 				return
 			}
