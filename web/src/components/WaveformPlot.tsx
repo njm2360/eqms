@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef } from "react"
 import uPlot from "uplot"
 import { emptyPlot, livePlot, rangePlot, type Plot } from "../lib/plotData"
 import type { Sample, WaveformRange } from "../lib/types"
@@ -18,11 +18,7 @@ interface Props {
   onViewChange?: (view: View) => void
 }
 
-const AXES = [
-  { label: "X", cssVar: "--series-x" },
-  { label: "Y", cssVar: "--series-y" },
-  { label: "Z", cssVar: "--series-z" },
-] as const
+const AXES = ["NS", "EW", "UD"] as const
 
 const PANE_MIN_H = 96
 const PANE_MAX_H = 220
@@ -30,6 +26,7 @@ const BOTTOM_GAP = 16 // 画面下端に残す余白
 const EDGE_PAD = 8 // 各段の上下端の目盛りラベルが半分はみ出さない幅
 const X_AXIS_H = 28
 const Y_AXIS_W = 52
+const Y_LABEL_W = 20 // 回転させた軸名の帯。Y_AXIS_Wとは別枠で確保される
 const X_LABEL_PAD = 16 // 右端の時刻ラベルが欠けない幅
 
 // 画面の残り高さを段数で割ってプロット領域の高さを決める
@@ -70,7 +67,6 @@ function clockLabel(sec: number): string {
 export default function WaveformPlot({ label, live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
   const interactive = bounds !== undefined
   const syncKey = useId()
-  const [paneH, setPaneH] = useState(PANE_MIN_H)
   const hostRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const valueRefs = useRef<(HTMLSpanElement | null)[]>([])
@@ -134,11 +130,10 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
     }
 
     const ph = paneHeight(host)
-    setPaneH(ph)
+    const series = cssColor("--series")
 
     const plots = AXES.map((axis, i) => {
       const isLast = i === AXES.length - 1
-      const stroke = cssColor(axis.cssVar)
       const opts: uPlot.Options = {
         width: host.clientWidth || 600,
         height: ph + EDGE_PAD * 2 + (isLast ? X_AXIS_H : 0),
@@ -170,6 +165,9 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           },
           {
             size: Y_AXIS_W,
+            label: `${axis} (gal)`,
+            labelSize: Y_LABEL_W,
+            labelFont: "600 12px system-ui",
             stroke: muted,
             font: "12px system-ui",
             grid: { stroke: grid, width: 1 },
@@ -182,7 +180,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
             values: (_u, splits) => splits.map(fmtScale),
           },
         ],
-        series: [{}, { stroke, width: 1.25, points: { show: false }, spanGaps: false }],
+        series: [{}, { stroke: series, width: 1.25, points: { show: false }, spanGaps: false }],
         hooks: { setCursor: [showReadout] },
       }
       // データは後から setData で入れる。スケール未確定のまま描かせない
@@ -221,7 +219,6 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
       if (w === lastW && h === lastPaneH) return
       lastW = w
       lastPaneH = h
-      setPaneH(h)
       for (const [i, u] of plots.entries())
         u.setSize({ width: w, height: h + EDGE_PAD * 2 + (i === AXES.length - 1 ? X_AXIS_H : 0) })
     }
@@ -378,14 +375,14 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4 pb-1 text-sm text-[var(--text-muted)]">
-        <span>{label}</span>
+      <div className="flex items-baseline justify-between gap-4 pb-1 text-sm">
+        <span className="text-[var(--text-secondary)]">{label}</span>
         <span className="flex items-baseline gap-x-3 tabular-nums">
           {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
-          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap" />
+          <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)]" />
           {AXES.map((axis, i) => (
-            <span key={axis.label} className="whitespace-nowrap">
-              <span style={{ color: `var(${axis.cssVar})` }}>{axis.label}</span>{" "}
+            <span key={axis} className="whitespace-nowrap">
+              <span className="text-[var(--text-muted)]">{axis}</span>{" "}
               <span
                 className="inline-block w-[7ch] text-right"
                 ref={(el) => {
@@ -396,17 +393,7 @@ export default function WaveformPlot({ label, live, spanMs = 30_000, range, view
           ))}
         </span>
       </div>
-      <div ref={hostRef} className="wave-host relative">
-        {AXES.map((axis, i) => (
-          <span
-            key={axis.label}
-            className="pointer-events-none absolute z-10 text-xs font-bold"
-            style={{ color: `var(${axis.cssVar})`, left: Y_AXIS_W + 6, top: i * (paneH + EDGE_PAD * 2) + EDGE_PAD + 3 }}
-          >
-            {axis.label}
-          </span>
-        ))}
-      </div>
+      <div ref={hostRef} className="wave-host" />
     </div>
   )
 }

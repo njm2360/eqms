@@ -60,7 +60,7 @@ export default function App() {
         <main className="mx-auto w-full max-w-5xl">
           <IntensityPanel status={status} intensity={intensity} waveRef={waveRef} />
           <section className="py-3">
-            <WaveformPlot label="加速度 gal　直近30秒" live={waveRef} spanMs={30_000} />
+            <WaveformPlot label="加速度　直近30秒" live={waveRef} spanMs={30_000} />
           </section>
         </main>
       ) : (

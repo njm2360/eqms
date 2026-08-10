@@ -3,23 +3,27 @@
 /* ダーク固定 */
 :root {
   color-scheme: dark;
-  --surface-0: #111110;
-  --surface-1: #1a1a19;
-  --border: #2e2e2b;
-  --grid: #242422; /* 波形のゼロ線と時刻グリッド。外枠より弱くする */
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #8a897f;
-  --series-x: #3987e5;
-  --series-y: #d95926;
-  --series-z: #199e70;
-  --ok: #199e70;
-  --bad: #e66767;
+  --surface-0: #0f1115;
+  --surface-1: #171b21;
+  --border: #2c323b;
+  --grid: #21262e; /* 波形のゼロ線と時刻グリッド。外枠より弱くする */
+  --text-primary: #f5f7fa;
+  --text-secondary: #c4cbd4;
+  --text-muted: #808894;
+  --series: #e9edf2; /* 波形が画面で最も明るくなるよう本文より上に置く */
+  --ok: #2fb37c;
+  --bad: #f26d6d;
 }
 
 /* uPlot: 段ごとのプロット領域を枠で囲む。隣り合う段は境界線を1本だけ共有する */
 .wave-host .u-over {
   border: 1px solid var(--border);
+}
+.wave-host .u-under {
+  background: var(--surface-1);
+}
+.wave-host .u-cursor-x {
+  border-right-color: var(--text-muted);
 }
 .wave-host .uplot + .uplot .u-over {
   border-top: 0;

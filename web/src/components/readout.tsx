@@ -30,7 +30,7 @@ export function IntensityBadge({ value }: { value: number }) {
       >
         {c.label}
       </span>
-      <span className="tabular-nums text-[var(--text-secondary)]">{value.toFixed(1)}</span>
+      <span className="tabular-nums">{value.toFixed(1)}</span>
     </span>
   )
 }
