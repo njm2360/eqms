@@ -1,177 +1,177 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { EVENTS_PAGE_SIZE, fetchEvent, fetchEvents, fetchWaveform, nextCursor, type EventsCursor } from "../lib/api"
-import { downloadWaveformCsv } from "../lib/csv"
-import { fmtDuration, fmtTime } from "../lib/format"
-import { jmaClass } from "../lib/jma"
-import { pushQuery, replaceQuery, useQuery } from "../lib/urlState"
-import type { EqEvent, WaveformRange } from "../lib/types"
-import { Field, IntensityBadge } from "./readout"
-import WaveformPlot, { type View } from "./WaveformPlot"
+import { useCallback, useEffect, useRef, useState } from "react";
+import { EVENTS_PAGE_SIZE, fetchEvent, fetchEvents, fetchWaveform, nextCursor, type EventsCursor } from "../lib/api";
+import { downloadWaveformCsv } from "../lib/csv";
+import { fmtDuration, fmtTime } from "../lib/format";
+import { jmaClass } from "../lib/jma";
+import { pushQuery, replaceQuery, useQuery } from "../lib/urlState";
+import type { EqEvent, WaveformRange } from "../lib/types";
+import { Field, IntensityBadge } from "./readout";
+import WaveformPlot, { type View } from "./WaveformPlot";
 
 // 1px あたり min/max の2点。サーバー側の上限が 20000
-const pointsFor = (width: number) => Math.min(20000, Math.max(500, Math.round(width * 2)))
+const pointsFor = (width: number) => Math.min(20000, Math.max(500, Math.round(width * 2)));
 
 // 並びは API のカーソルと揃える
 function mergeEvents(prev: EqEvent[], next: EqEvent[]): EqEvent[] {
-  const byId = new Map(prev.map((e) => [e.id, e]))
-  for (const e of next) byId.set(e.id, e)
-  return [...byId.values()].sort((a, b) => b.startedAt - a.startedAt || b.id - a.id)
+  const byId = new Map(prev.map((e) => [e.id, e]));
+  for (const e of next) byId.set(e.id, e);
+  return [...byId.values()].sort((a, b) => b.startedAt - a.startedAt || b.id - a.id);
 }
 
 export default function HistoryView({ eqCount, serverNow }: { eqCount: number; serverNow: number | null }) {
-  const [events, setEvents] = useState<EqEvent[]>([])
-  const [cursor, setCursor] = useState<EventsCursor | null>(null)
-  const [end, setEnd] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sel, setSel] = useState<EqEvent | null>(null)
-  const [exporting, setExporting] = useState(false)
-  const [wave, setWave] = useState<WaveformRange | null>(null)
-  const [bounds, setBounds] = useState<View | null>(null)
-  const [view, setView] = useState<View | null>(null)
-  const plotBoxRef = useRef<HTMLDivElement>(null)
-  const loadingRef = useRef(false)
-  const pagedRef = useRef(false) // 2ページ目以降を読み込んだか
-  const loadMoreRef = useRef<HTMLDivElement>(null)
-  const serverNowRef = useRef(serverNow)
-  serverNowRef.current = serverNow
-  const eventsRef = useRef(events)
-  eventsRef.current = events
+  const [events, setEvents] = useState<EqEvent[]>([]);
+  const [cursor, setCursor] = useState<EventsCursor | null>(null);
+  const [end, setEnd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sel, setSel] = useState<EqEvent | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [wave, setWave] = useState<WaveformRange | null>(null);
+  const [bounds, setBounds] = useState<View | null>(null);
+  const [view, setView] = useState<View | null>(null);
+  const plotBoxRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+  const pagedRef = useRef(false); // 2ページ目以降を読み込んだか
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const serverNowRef = useRef(serverNow);
+  serverNowRef.current = serverNow;
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
 
-  const eventQ = useQuery("event")
-  const eventId = Number.isInteger(Number(eventQ)) && Number(eventQ) > 0 ? Number(eventQ) : null
+  const eventQ = useQuery("event");
+  const eventId = Number.isInteger(Number(eventQ)) && Number(eventQ) > 0 ? Number(eventQ) : null;
 
-  const openEvent = (e: EqEvent) => pushQuery({ event: String(e.id) })
-  const closeEvent = () => pushQuery({ event: null })
+  const openEvent = (e: EqEvent) => pushQuery({ event: String(e.id) });
+  const closeEvent = () => pushQuery({ event: null });
 
   useEffect(() => {
     if (eventId === null) {
-      setSel(null)
-      return
+      setSel(null);
+      return;
     }
-    const local = eventsRef.current.find((e) => e.id === eventId)
+    const local = eventsRef.current.find((e) => e.id === eventId);
     if (local) {
-      setSel(local)
-      return
+      setSel(local);
+      return;
     }
-    let alive = true
+    let alive = true;
     fetchEvent(eventId)
       .then((e) => alive && setSel(e))
-      .catch(() => alive && replaceQuery({ event: null })) // 消えた記録は開かず URL からも外す
+      .catch(() => alive && replaceQuery({ event: null })); // 消えた記録は開かず URL からも外す
     return () => {
-      alive = false
-    }
-  }, [eventId])
+      alive = false;
+    };
+  }, [eventId]);
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
     fetchEvents(EVENTS_PAGE_SIZE)
       .then((page) => {
-        if (!alive) return
-        setEvents((prev) => mergeEvents(prev, page.events))
-        setError(null)
-        if (pagedRef.current) return // 読み込み済みの続きを巻き戻さない
-        const c = nextCursor(page)
-        setCursor(c)
-        setEnd(c === null)
+        if (!alive) return;
+        setEvents((prev) => mergeEvents(prev, page.events));
+        setError(null);
+        if (pagedRef.current) return; // 読み込み済みの続きを巻き戻さない
+        const c = nextCursor(page);
+        setCursor(c);
+        setEnd(c === null);
       })
-      .catch((e) => alive && setError(String(e)))
+      .catch((e) => alive && setError(String(e)));
     return () => {
-      alive = false
-    }
-  }, [eqCount])
+      alive = false;
+    };
+  }, [eqCount]);
 
   const loadMore = useCallback(() => {
-    if (loadingRef.current || end || !cursor) return
-    loadingRef.current = true
-    setLoading(true)
+    if (loadingRef.current || end || !cursor) return;
+    loadingRef.current = true;
+    setLoading(true);
     fetchEvents(EVENTS_PAGE_SIZE, cursor)
       .then((page) => {
-        pagedRef.current = true
-        setEvents((prev) => mergeEvents(prev, page.events))
-        const c = nextCursor(page)
-        setCursor(c)
-        setEnd(c === null)
-        setError(null)
+        pagedRef.current = true;
+        setEvents((prev) => mergeEvents(prev, page.events));
+        const c = nextCursor(page);
+        setCursor(c);
+        setEnd(c === null);
+        setError(null);
       })
       .catch((e) => setError(String(e)))
       .finally(() => {
-        loadingRef.current = false
-        setLoading(false)
-      })
-  }, [cursor, end])
+        loadingRef.current = false;
+        setLoading(false);
+      });
+  }, [cursor, end]);
 
   // 行が増えるたびに張り直す。1ページで画面が埋まらないときはそのまま続きを読む
   useEffect(() => {
-    const el = loadMoreRef.current
-    if (!el) return
+    const el = loadMoreRef.current;
+    if (!el) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) loadMore()
+        if (entries[0].isIntersecting) loadMore();
       },
       { rootMargin: "300px" },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [events.length, loadMore])
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [events.length, loadMore]);
 
   useEffect(() => {
-    setWave(null)
+    setWave(null);
     if (!sel) {
-      setBounds(null)
-      setView(null)
-      return
+      setBounds(null);
+      setView(null);
+      return;
     }
     // 記録中は終端がないので、クライアント時計ではなくサーバーの現在時刻で切る
-    const b = { from: sel.startedAt, to: sel.endedAt ?? serverNowRef.current ?? Date.now() }
-    setBounds(b)
-    setView(b)
-  }, [sel])
+    const b = { from: sel.startedAt, to: sel.endedAt ?? serverNowRef.current ?? Date.now() };
+    setBounds(b);
+    setView(b);
+  }, [sel]);
 
   // 表示範囲が変わるたびに引き直して解像度を上げる
   useEffect(() => {
-    if (!view) return
-    let alive = true
-    const ctrl = new AbortController()
+    if (!view) return;
+    let alive = true;
+    const ctrl = new AbortController();
     fetchWaveform(view.from, view.to, pointsFor(plotBoxRef.current?.clientWidth ?? 800), ctrl.signal)
       .then((w) => {
-        if (!alive) return
-        setWave(w)
-        setError(null)
+        if (!alive) return;
+        setWave(w);
+        setError(null);
       })
       .catch((e: Error) => {
-        if (alive && e.name !== "AbortError") setError(String(e))
-      })
+        if (alive && e.name !== "AbortError") setError(String(e));
+      });
     return () => {
-      alive = false
-      ctrl.abort()
-    }
-  }, [view])
+      alive = false;
+      ctrl.abort();
+    };
+  }, [view]);
 
   // モーダル表示中の取り残され防止。PC の右カラムでも閉じられて困らない
   useEffect(() => {
-    if (!sel) return
+    if (!sel) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeEvent()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [sel])
+      if (e.key === "Escape") closeEvent();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sel]);
 
-  const zoomed = !!(view && bounds && view.to - view.from < bounds.to - bounds.from - 1)
-  const waveGone = wave !== null && wave.segments.length === 0 && !zoomed
+  const zoomed = !!(view && bounds && view.to - view.from < bounds.to - bounds.from - 1);
+  const waveGone = wave !== null && wave.segments.length === 0 && !zoomed;
 
   const exportCsv = async () => {
-    if (!sel || !bounds || exporting) return
-    setExporting(true)
+    if (!sel || !bounds || exporting) return;
+    setExporting(true);
     try {
-      await downloadWaveformCsv(bounds.from, bounds.to, `EQMS-${sel.id}.csv`)
+      await downloadWaveformCsv(bounds.from, bounds.to, `EQMS-${sel.id}.csv`);
     } catch (e) {
-      setError(String(e))
+      setError(String(e));
     } finally {
-      setExporting(false)
+      setExporting(false);
     }
-  }
+  };
 
   const detail = sel && (
     // スマホは全画面モーダル、lg 以上は右カラムとして固定表示
@@ -234,7 +234,7 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
         )}
       </div>
     </div>
-  )
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -264,8 +264,9 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
               {events.map((e) => (
                 <tr
                   key={e.id}
-                  className={`cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--border)]/40 ${sel?.id === e.id ? "bg-[var(--border)]/60" : ""
-                    }`}
+                  className={`cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--border)]/40 ${
+                    sel?.id === e.id ? "bg-[var(--border)]/60" : ""
+                  }`}
                   onClick={() => openEvent(e)}
                 >
                   <td className="px-4 py-2 tabular-nums text-[var(--text-muted)]">{e.id}</td>
@@ -298,5 +299,5 @@ export default function HistoryView({ eqCount, serverNow }: { eqCount: number; s
         )}
       </div>
     </div>
-  )
+  );
 }

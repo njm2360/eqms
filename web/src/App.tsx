@@ -1,34 +1,36 @@
-import { useEffect } from "react"
-import HistoryView from "./components/HistoryView"
-import IntensityPanel from "./components/IntensityPanel"
-import WaveformPlot from "./components/WaveformPlot"
-import { jmaClass, MIN_DISPLAY_INTENSITY } from "./lib/jma"
-import { pushQuery, useQuery } from "./lib/urlState"
-import { useStream } from "./lib/useStream"
+import { useEffect } from "react";
+import HistoryView from "./components/HistoryView";
+import IntensityPanel from "./components/IntensityPanel";
+import WaveformPlot from "./components/WaveformPlot";
+import { jmaClass, MIN_DISPLAY_INTENSITY } from "./lib/jma";
+import { pushQuery, useQuery } from "./lib/urlState";
+import { useStream } from "./lib/useStream";
 
-type Tab = "realtime" | "history"
+type Tab = "realtime" | "history";
 
 const TABS: [Tab, string][] = [
   ["realtime", "リアルタイム"],
   ["history", "地震記録"],
-]
+];
 
-const BASE_TITLE = "EQMS 地震計モニター"
+const BASE_TITLE = "EQMS 地震計モニター";
 
 export default function App() {
-  const { status, intensity, streamOk, eqCount, waveRef } = useStream()
-  const tab: Tab = useQuery("tab") === "history" ? "history" : "realtime"
+  const { status, intensity, streamOk, eqCount, waveRef } = useStream();
+  const tab: Tab = useQuery("tab") === "history" ? "history" : "realtime";
 
-  const raw = intensity?.intensity ?? status?.intensity ?? null
-  const intensityNow = raw !== null && raw >= MIN_DISPLAY_INTENSITY ? raw : null
+  const raw = intensity?.intensity ?? status?.intensity ?? null;
+  const intensityNow = raw !== null && raw >= MIN_DISPLAY_INTENSITY ? raw : null;
   useEffect(() => {
     document.title =
-      intensityNow !== null ? `震度${jmaClass(intensityNow).label} (${intensityNow.toFixed(1)}) - ${BASE_TITLE}` : BASE_TITLE
-  }, [intensityNow])
+      intensityNow !== null
+        ? `震度${jmaClass(intensityNow).label} (${intensityNow.toFixed(1)}) - ${BASE_TITLE}`
+        : BASE_TITLE;
+  }, [intensityNow]);
 
   const switchTab = (t: Tab) => {
-    pushQuery(t === "realtime" ? { tab: null, event: null } : { tab: t })
-  }
+    pushQuery(t === "realtime" ? { tab: null, event: null } : { tab: t });
+  };
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[90rem] flex-col px-2 sm:px-4">
@@ -44,10 +46,11 @@ export default function App() {
             <button
               key={key}
               onClick={() => switchTab(key)}
-              className={`border-b-2 px-2 pb-0.5 text-sm ${tab === key
-                ? "border-[var(--text-primary)] text-[var(--text-primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
+              className={`border-b-2 px-2 pb-0.5 text-sm ${
+                tab === key
+                  ? "border-[var(--text-primary)] text-[var(--text-primary)]"
+                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
             >
               {label}
             </button>
@@ -69,5 +72,5 @@ export default function App() {
         </main>
       )}
     </div>
-  )
+  );
 }

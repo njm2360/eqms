@@ -1,74 +1,74 @@
 export interface Sample {
-  t: number // ms epoch
-  x: number
-  y: number
-  z: number
+  t: number; // ms epoch
+  x: number;
+  y: number;
+  z: number;
 }
 
 export interface WaveMsg {
-  t0: number
-  dt: number
-  x: Float32Array
-  y: Float32Array
-  z: Float32Array
+  t0: number;
+  dt: number;
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
 }
 
 export interface IntMsg {
-  t: number
-  intensity: number | null
-  stable: boolean
+  t: number;
+  intensity: number | null;
+  stable: boolean;
 }
 
 export interface ActiveEvent {
-  id: number
-  startedAt: number
-  triggeredAt: number
-  maxIntensity: number
-  maxPga: number
+  id: number;
+  startedAt: number;
+  triggeredAt: number;
+  maxIntensity: number;
+  maxPga: number;
 }
 
 export interface Status {
-  now: number
-  connected: boolean
-  intensity: number | null
-  stable: boolean
-  active: ActiveEvent | null
+  now: number;
+  connected: boolean;
+  intensity: number | null;
+  stable: boolean;
+  active: ActiveEvent | null;
 }
 
 export interface EqEvent {
-  id: number
-  startedAt: number
-  triggeredAt: number
-  endedAt: number | null
-  maxIntensity: number | null
-  maxPga: number | null
+  id: number;
+  startedAt: number;
+  triggeredAt: number;
+  endedAt: number | null;
+  maxIntensity: number | null;
+  maxPga: number | null;
 }
 
 // Segment は連続したサンプル列。間引かれた応答では x/y/z の代わりに軸ごとの min/max が入る。
 export interface Segment {
-  t0: number
-  dt: number
-  n: number
-  x?: number[]
-  y?: number[]
-  z?: number[]
-  xMin?: number[]
-  xMax?: number[]
-  yMin?: number[]
-  yMax?: number[]
-  zMin?: number[]
-  zMax?: number[]
+  t0: number;
+  dt: number;
+  n: number;
+  x?: number[];
+  y?: number[];
+  z?: number[];
+  xMin?: number[];
+  xMax?: number[];
+  yMin?: number[];
+  yMax?: number[];
+  zMin?: number[];
+  zMax?: number[];
 }
 
 export interface EventsPage {
-  events: EqEvent[]
-  nextBefore: number | null
-  nextBeforeId: number | null
+  events: EqEvent[];
+  nextBefore: number | null;
+  nextBeforeId: number | null;
 }
 
 export interface WaveformRange {
-  from: number
-  to: number
-  decimated: boolean
-  segments: Segment[]
+  from: number;
+  to: number;
+  decimated: boolean;
+  segments: Segment[];
 }

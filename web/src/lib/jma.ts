@@ -1,9 +1,9 @@
 // 計測震度から気象庁震度階級への変換。色は気象庁の震度配色。
 
 export interface JmaClass {
-  label: string
-  bg: string
-  fg: string
+  label: string;
+  bg: string;
+  fg: string;
 }
 
 const classes: { min: number; c: JmaClass }[] = [
@@ -16,13 +16,13 @@ const classes: { min: number; c: JmaClass }[] = [
   { min: 2.5, c: { label: "3", bg: "#0041ff", fg: "#ffffff" } },
   { min: 1.5, c: { label: "2", bg: "#00aaff", fg: "#0f1115" } },
   { min: 0.5, c: { label: "1", bg: "#f2f2ff", fg: "#0f1115" } },
-]
+];
 
-export const MIN_DISPLAY_INTENSITY = -0.5
+export const MIN_DISPLAY_INTENSITY = -0.5;
 
 export function jmaClass(intensity: number): JmaClass {
   for (const { min, c } of classes) {
-    if (intensity >= min) return c
+    if (intensity >= min) return c;
   }
-  return { label: "0", bg: "#2c323b", fg: "#ffffff" }
+  return { label: "0", bg: "#2c323b", fg: "#ffffff" };
 }

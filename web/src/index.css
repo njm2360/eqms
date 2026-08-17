@@ -32,5 +32,10 @@
 body {
   background: var(--surface-0);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Hiragino Sans",
+    "Noto Sans JP",
+    sans-serif;
 }
