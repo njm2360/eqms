@@ -94,6 +94,7 @@ function clockLabel(sec: number): string {
 
 export default function WaveformPlot({ live, spanMs = 30_000, range, view, bounds, onViewChange }: Props) {
   const interactive = bounds !== undefined
+  const readout = live === undefined
   const syncKey = useId()
   const hostRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
@@ -215,7 +216,7 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
           {},
           { stroke: series, width: 1.25, points: { show: false }, spanGaps: false, pxAlign: 0, paths: clipToPlot },
         ],
-        hooks: { setCursor: [showReadout] },
+        hooks: readout ? { setCursor: [showReadout] } : {},
       }
       // データは後から setData で入れる。スケール未確定のまま描かせない
       const u = new uPlot(opts, [[], []] as uPlot.AlignedData, host)
@@ -362,7 +363,7 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
       viewRef.current = null
       scaledRef.current = false
     }
-  }, [syncKey, interactive, live, spanMs])
+  }, [syncKey, interactive, readout, live, spanMs])
 
   // 各インスタンスは1系列なので、共有の x と自分の軸だけを渡す。
   // y は 3 段共有なので、データと一緒に必ず入れ直す
@@ -426,23 +427,28 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
   return (
     <div>
       {/* 3軸は一体のまま、狭い幅では時刻とのあいだで折る */}
-      <div className="flex flex-wrap items-baseline justify-end gap-x-3 pb-1 text-sm tabular-nums">
-        <span ref={timeRef} className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)] empty:hidden" />
-        <span className="flex items-baseline gap-x-3">
-          {AXES.map((axis, i) => (
-            <span key={axis} className="whitespace-nowrap">
-              <span className="text-[var(--text-muted)]">{axis}</span>{" "}
-              {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
-              <span
-                className="inline-block w-[7ch] text-right"
-                ref={(el) => {
-                  valueRefs.current[i] = el
-                }}
-              />
-            </span>
-          ))}
-        </span>
-      </div>
+      {readout && (
+        <div className="flex flex-wrap items-baseline justify-end gap-x-3 pb-1 text-sm tabular-nums">
+          <span
+            ref={timeRef}
+            className="inline-block w-[12ch] whitespace-nowrap text-[var(--text-secondary)] empty:hidden"
+          />
+          <span className="flex items-baseline gap-x-3">
+            {AXES.map((axis, i) => (
+              <span key={axis} className="whitespace-nowrap">
+                <span className="text-[var(--text-muted)]">{axis}</span>{" "}
+                {/* 値の桁数が変わっても隣が動かないよう固定幅で右寄せ */}
+                <span
+                  className="inline-block w-[7ch] text-right"
+                  ref={(el) => {
+                    valueRefs.current[i] = el
+                  }}
+                />
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
       <div ref={hostRef} className="wave-host" />
     </div>
   )
