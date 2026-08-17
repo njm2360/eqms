@@ -66,6 +66,27 @@ function tickLabel(sec: number, incrSec: number): string {
   return hms + (d.getMilliseconds() / 1000).toFixed(digits).slice(1)
 }
 
+// 既定のクリップはプロット領域より線幅ぶん広く、枠の外へ波形が漏れる。gaps の除外も引き受ける
+const linearPath = uPlot.paths.linear!()
+const clipToPlot: uPlot.Series.PathBuilder = (u, si, i0, i1) => {
+  const p = linearPath(u, si, i0, i1)
+  if (!p) return p
+  const { left, top, width, height } = u.bbox
+  const right = left + width
+  const clip = new Path2D()
+  let x = left
+  for (const [g0, g1] of p.gaps ?? []) {
+    const lo = Math.max(g0, left)
+    const hi = Math.min(g1, right)
+    if (hi <= lo) continue
+    if (lo > x) clip.rect(x, top, lo - x, height)
+    x = hi
+  }
+  if (right > x) clip.rect(x, top, right - x, height)
+  p.clip = clip
+  return p
+}
+
 function clockLabel(sec: number): string {
   const d = new Date(sec * 1000)
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`
@@ -187,7 +208,11 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
             values: (_u, splits) => splits.map(fmtScale),
           },
         ],
-        series: [{}, { stroke: series, width: 1.25, points: { show: false }, spanGaps: false }],
+        // pxAlign:0 で描画前の平行移動が消え、クリップが領域ちょうどに効く。x も丸められない
+        series: [
+          {},
+          { stroke: series, width: 1.25, points: { show: false }, spanGaps: false, pxAlign: 0, paths: clipToPlot },
+        ],
         hooks: { setCursor: [showReadout] },
       }
       // データは後から setData で入れる。スケール未確定のまま描かせない
