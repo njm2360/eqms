@@ -173,6 +173,8 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
           drag: { x: false, y: false }, // 範囲選択は使わない。拡大はホイール、移動はドラッグ
           points: { show: false },
           y: false, // 横線は読み取れる情報がない
+          // 右端ちょうどだと線の1pxが枠の外へ出る。負値は非表示位置なので通す
+          move: (u, left, top) => [left > 0 ? Math.min(left, u.over.clientWidth - 1) : left, top],
         },
         // どちらも setScale で明示的に入れる。auto に任せると 3 段でスケールが割れる
         scales: {
@@ -258,6 +260,11 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
     ro.observe(host)
     // ビューポートの高さだけ変わってもホストの幅は変わらず RO が発火しない
     window.addEventListener("resize", applySize)
+
+    const dropCursor = () => {
+      for (const u of plots) u.setCursor({ left: -10, top: -10 })
+    }
+    window.addEventListener("blur", dropCursor)
 
     const cleanups: (() => void)[] = []
     if (interactive) {
@@ -347,6 +354,7 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
       clearTimeout(notifyTimer)
       ro.disconnect()
       window.removeEventListener("resize", applySize)
+      window.removeEventListener("blur", dropCursor)
       for (const c of cleanups) c()
       for (const u of plots) u.destroy()
       plotsRef.current = []
