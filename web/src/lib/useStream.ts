@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { IntMsg, Sample, Status, WaveMsg } from "./types"
 
-const WINDOW_MS = 30_000
+const WINDOW_MS = 32_000
 
 function decodeWave(b64: string): WaveMsg | null {
   const raw = atob(b64)

@@ -42,6 +42,14 @@ function fmtScale(v: number): string {
 const MIN_SPAN_MS = 200 // 生サンプル20点。これ以上拡大しても情報は増えない
 const NOTIFY_DELAY_MS = 150
 
+// 波形は100msごとに届く。右端をそこへ直接合わせると刻んで飛ぶので、実時間で進めて引き込む
+const LIVE_LAG_MS = 200
+const CATCHUP = 0.03
+const CATCHUP_MAX = 0.25 // 大きいと引き込み中の動きが速く見える
+const SNAP_MS = 1000
+const FREEZE_MS = 300
+const MAX_FRAME_MS = 100
+
 function cssColor(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
@@ -352,23 +360,33 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
     applyViewRef.current(view, false)
   }, [view])
 
-  // ライブ: バッファが変わったときだけ組み直す
+  // ライブ: データはバッファが変わったときだけ組み直し、表示範囲は毎フレーム進める
   useEffect(() => {
     if (!live) return
     let raf = 0
     let key = ""
-    const tick = () => {
+    let end = 0 // 表示右端 (ms epoch)。0 は未初期化
+    let prev = 0
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick)
+      const dt = prev === 0 ? 0 : Math.min(now - prev, MAX_FRAME_MS)
+      prev = now
+
       const buf = live.current
       const k = buf.length === 0 ? "" : `${buf.length}:${buf[0].t}:${buf[buf.length - 1].t}`
       if (k !== key) {
         key = k
         pushDataRef.current(livePlot(buf))
-        const end = buf.length > 0 ? buf[buf.length - 1].t : Date.now()
-        applyViewRef.current({ from: end - spanMs, to: end }, false)
       }
-      raf = requestAnimationFrame(tick)
+      if (buf.length === 0) return
+
+      const err = buf[buf.length - 1].t - LIVE_LAG_MS - end
+      if (end === 0 || Math.abs(err) > SNAP_MS) end += err
+      else if (err > -FREEZE_MS) end += dt + Math.max(-dt * CATCHUP_MAX, Math.min(dt * CATCHUP_MAX, err * CATCHUP))
+      else return
+      applyViewRef.current({ from: end - spanMs, to: end }, false)
     }
-    tick()
+    raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [live, spanMs])
 
