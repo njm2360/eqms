@@ -170,6 +170,7 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
         padding: [EDGE_PAD, X_LABEL_PAD, EDGE_PAD, 0],
         legend: { show: false },
         cursor: {
+          show: readout,
           sync: { key: syncKey },
           drag: { x: false, y: false }, // 範囲選択は使わない。拡大はホイール、移動はドラッグ
           points: { show: false },
@@ -220,7 +221,7 @@ export default function WaveformPlot({ live, spanMs = 30_000, range, view, bound
       }
       // データは後から setData で入れる。スケール未確定のまま描かせない
       const u = new uPlot(opts, [[], []] as uPlot.AlignedData, host)
-      u.over.style.cursor = interactive ? "grab" : "crosshair"
+      u.over.style.cursor = interactive ? "grab" : readout ? "crosshair" : "default"
       return u
     })
     plotsRef.current = plots
